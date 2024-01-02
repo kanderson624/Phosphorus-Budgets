@@ -222,7 +222,7 @@ total$percentP=total$Premoved/total$Pinlb
 percentRemoval = mean (total$percentP,na.rm=T)
 print(percentRemoval)
 ```
-### ***ASSUMPTIONS IN BUDGET #4:*** 
+### ***ASSUMPTIONS IN BUDGET:*** 
   1. Drainage area is accurate <br>
   2. P isn't lost through groundwater<br>
   3. Baseflow P reduction = storm flow P reduction <br>
