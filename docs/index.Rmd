@@ -261,7 +261,7 @@ tDAm2=tDA*4046.86
 # units = m^2
 print(tDAm2)
 ```
-Then we import data on precipitation from weather underground at the Ft. Wayne weather station (31 miles away)
+Then we import data on precipitation from weather underground at the Ft. Wayne weather station (51 miles away)
 
 ```{r}
 setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/SJRE/Data")
