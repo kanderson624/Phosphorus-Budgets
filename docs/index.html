@@ -641,10 +641,114 @@ retention.</p>
 <pre class="r"><code># High retention value (July; we multiply by 9 and add to the existing estimate to create an annual estimate):
 Removal_high = ((total[total$Month == &quot;Jul&quot;, &quot;Premoved&quot;])*9)+Removal
 # Low retention value (June; we multiply by 9 and add to the existing estimate to create an annual estimate):
-Removal_low = ((total[total$Month == &quot;Jun&quot;, &quot;Premoved&quot;])*9)+Removal</code></pre>
+Removal_low = ((total[total$Month == &quot;Jun&quot;, &quot;Premoved&quot;])*9)+Removal
+print(Removal_high)</code></pre>
+<pre><code>## [1] 107.4379</code></pre>
+<pre class="r"><code>print(Removal_low)</code></pre>
+<pre><code>## [1] 13.66843</code></pre>
 <p>This estimate range is taking our 3 measured months as accurate and
 then assuming that the months we don’t know could be either as high as
 July, or as low as June.</p>
+</div>
+<div id="lets-see-how-rainfall-data-from-the-closest-publicly-available-weather-station-does-ft.-wayne-indiana-31-miles-away" class="section level3">
+<h3>Lets see how rainfall data from the closest publicly available
+weather station does (Ft. Wayne Indiana, 31 miles away)</h3>
+<p>Calculate drainage area and treated drainage area as above:</p>
+<pre class="r"><code># Drainage Area calculated by Bishwodeep using Digital Elevation Model (DEM)
+tDA = 103.32
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)</code></pre>
+<pre><code>## [1] 418121.6</code></pre>
+<p>Then we import data on precipitation from weather underground at the
+Ft. Wayne weather station (31 miles away)</p>
+<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/SJRE/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata</code></pre>
+<p>Then we calculate runoff as above.</p>
+<pre class="r"><code># Start out by calculating S (inches)
+CN=80
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# caculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/SJRE/Data&quot;)
+Pdata&lt;-read.csv(&quot;SJRE P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# merge the datasets
+total_wayne &lt;- merge(monthrain,Pdata,by=c(&quot;Month&quot;,&quot;Year&quot;))
+#  averaging the various inflows 
+total_wayne$inflowTP &lt;- rowMeans(total_wayne[c(&#39;X1_Inlet_N.TP&#39;, &#39;X2_Inlet_NW.TP&#39;,&#39;X3_Inlet_NE.TP&#39;,&#39;X18_Inlet_ditchExt.TP.OR.upstream17&#39;)], na.rm=TRUE)
+# Now calculate the average outflow TP
+total_wayne$outflowTP &lt;- rowMeans(total_wayne[c(&#39;X15_Outlet_swale&#39;, &#39;X17_Outlet_ditch.TP&#39;)], na.rm=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/year)
+total_wayne$Pin=total_wayne$inflowTP*total_wayne$QL
+# calculate the total_wayne mass of P exiting the wetland (units = mg P/year)
+total_wayne$Pout=total_wayne$outflowTP*total_wayne$QL
+# Convert to lbs P/year
+total_wayne$Pinlb=total_wayne$Pin/453592
+total_wayne$Poutlb=total_wayne$Pout/453592
+# calculate the amount of P removed
+total_wayne$Premoved=total_wayne$Pinlb-total_wayne$Poutlb
+Removal = sum (total_wayne$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 3 months included in this data
+print(Removal)</code></pre>
+<pre><code>## [1] 20.5047</code></pre>
+<pre class="r"><code># We can make a rough annual estimate by just multiplying by 4:
+AnnRemoval=Removal*4
+print(AnnRemoval)</code></pre>
+<pre><code>## [1] 82.0188</code></pre>
+<pre class="r"><code># Calculate percent removal
+total_wayne$percentP=total_wayne$Premoved/total_wayne$Pinlb
+percentRemoval = mean (total_wayne$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.9648419</code></pre>
+<p>Now lets compare our two datasets:</p>
+<pre class="r"><code># First our data from out sensor network: 
+total[c(&quot;Month&quot;,&quot;QL&quot;,&quot;Premoved&quot;,&quot;percentP&quot;)]</code></pre>
+<pre><code>##   Month        QL   Premoved  percentP
+## 1   Aug  102210.3  0.3808167 0.9768786
+## 2   Jul 4325175.2 10.6796333 0.9411765
+## 3   Jun  142525.1  0.2607978 0.9764706</code></pre>
+<pre class="r"><code># Then the dataset using publicly available rainfall data from Ft. Wayne:
+total_wayne[c(&quot;Month&quot;,&quot;QL&quot;,&quot;Premoved&quot;,&quot;percentP&quot;)]</code></pre>
+<pre><code>##   Month         QL   Premoved  percentP
+## 1   Aug 1881680.48  7.0107939 0.9768786
+## 2   Jul 5414361.50 13.3690296 0.9411765
+## 3   Jun   68244.44  0.1248763 0.9764706</code></pre>
+<p>Then get the range in our new estimate:</p>
+<pre class="r"><code># High retention value (July; we multiply by 9 and add to the existing estimate to create an annual estimate):
+Removal_high = ((total_wayne[total_wayne$Month == &quot;Jul&quot;, &quot;Premoved&quot;])*9)+Removal
+# Low retention value (June; we multiply by 9 and add to the existing estimate to create an annual estimate):
+Removal_low = ((total_wayne[total_wayne$Month == &quot;Jun&quot;, &quot;Premoved&quot;])*9)+Removal
+print(Removal_high)</code></pre>
+<pre><code>## [1] 140.826</code></pre>
+<pre class="r"><code>print(Removal_low)</code></pre>
+<pre><code>## [1] 21.62859</code></pre>
 </div>
 </div>
 
