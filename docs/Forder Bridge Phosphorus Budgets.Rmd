@@ -229,7 +229,7 @@ dayrain=raindata
 Then we calculate runoff as above.
 ```{r}
 # Start out by calculating S (inches)
-CN=80
+CN=85
 S = (1000/CN)-10
 # Calculate I (inches)
 Ia = 0.2*S

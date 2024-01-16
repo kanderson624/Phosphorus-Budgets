@@ -573,7 +573,7 @@ raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d
 dayrain=raindata</code></pre>
 <p>Then we calculate runoff as above.</p>
 <pre class="r"><code># Start out by calculating S (inches)
-CN=80
+CN=85
 S = (1000/CN)-10
 # Calculate I (inches)
 Ia = 0.2*S
@@ -637,19 +637,19 @@ where we do not</p>
 total23&lt;- subset(total, Year == &quot;2023&quot;)
 total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
 print(total23)</code></pre>
-<pre><code>##    Month Year      Pinlb     Poutlb   Premoved         QL inflowTP outflowTP
-## 1    Apr 2023 0.10717225 0.01786204 0.08931021  162041.58   0.3000     0.050
-## 3    Aug 2023         NA         NA         NA 1090908.45       NA        NA
-## 4    Dec 2023         NA         NA         NA       0.00       NA        NA
-## 5    Feb 2023 1.91945405 0.86076990 1.05868415 2849914.90   0.3055     0.137
-## 6    Jan 2023 0.04207627 0.02912972 0.01294654   73405.61   0.2600     0.180
-## 8    Jul 2023 4.16601451        NaN        NaN 3138988.13   0.6020       NaN
-## 10   Jun 2023        NaN        NaN        NaN   39564.86      NaN       NaN
-## 12   Mar 2023 1.55503578 0.44429594 1.11073984 3358818.04   0.2100     0.060
-## 13   May 2023 3.98169517 1.24427974 2.73741543 3762635.57   0.4800     0.150
-## 15   Nov 2023        NaN        NaN        NaN       0.00      NaN       NaN
-## 18   Oct 2023         NA         NA         NA   73626.45       NA        NA
-## 20   Sep 2023        NaN        NaN        NaN  308711.94      NaN       NaN</code></pre>
+<pre><code>##    Month Year     Pinlb     Poutlb  Premoved        QL inflowTP outflowTP
+## 1    Apr 2023 0.3253195 0.05421992 0.2710996  491874.4   0.3000     0.050
+## 3    Aug 2023        NA         NA        NA 1948600.9       NA        NA
+## 4    Dec 2023        NA         NA        NA   37702.7       NA        NA
+## 5    Feb 2023 3.3077607 1.48334933 1.8244114 4911207.2   0.3055     0.137
+## 6    Jan 2023 0.2580155 0.17862615 0.0793894  450130.0   0.2600     0.180
+## 8    Jul 2023 7.1854183        NaN       NaN 5414033.6   0.6020       NaN
+## 10   Jun 2023       NaN        NaN       NaN  231481.9      NaN       NaN
+## 12   Mar 2023 2.4545506 0.70130018 1.7532505 5301735.9   0.2100     0.060
+## 13   May 2023 6.2209732 1.94405411 4.2769190 5878716.0   0.4800     0.150
+## 15   Nov 2023       NaN        NaN       NaN       0.0      NaN       NaN
+## 18   Oct 2023        NA         NA        NA  617561.6       NA        NA
+## 20   Sep 2023       NaN        NaN       NaN  746323.1      NaN       NaN</code></pre>
 <p>We can assume there is no P retained when there is no discharge:</p>
 <pre class="r"><code>library(dplyr)
 # first make all NaNs into NAs
@@ -675,7 +675,7 @@ of the year:</p>
 <pre class="r"><code>Removal = sum (total23$Premoved,na.rm=T)
 # This is the removal of P by pool by over the course of the 8 months that we have data for
 print(Removal)</code></pre>
-<pre><code>## [1] 7.587331</code></pre>
+<pre><code>## [1] 12.65193</code></pre>
 <p>We can estimate the other 4 months by estimating a low and a high
 value for P loading and P retention. <br> We have discharge data for all
 months, so we don’t want to just estimate loading, when we can estimate
@@ -702,9 +702,9 @@ total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*hi
 lowRemoval = sum (total23$Premovedlow,na.rm=T)
 highRemoval = sum (total23$Premovedhigh,na.rm=T)
 print(lowRemoval)</code></pre>
-<pre><code>## [1] 7.802835</code></pre>
+<pre><code>## [1] 13.16215</code></pre>
 <pre class="r"><code>print(highRemoval)</code></pre>
-<pre><code>## [1] 9.26048</code></pre>
+<pre><code>## [1] 16.61321</code></pre>
 </div>
 <div id="assumptions-in-this-budget" class="section level3">
 <h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
