@@ -556,13 +556,18 @@ power through with it)</p>
 <p>CN will depend on the soil of the site. In this case it’s probably
 around 80, fairly poorly drained, but we may want to come back and think
 abit more about what our curve number should be. <br></p>
-<pre class="r"><code># Drainage Area calculated by StreamStats
-tDA = 59.9
+<p>The drainage area we are using here accounts mainly for the drainage
+entering through the culvert which we expect the majority of to run
+through the wetland and out the stream into the Maumee river. The
+majority of this area is the field to the southeast of the FORB land
+parcel.</p>
+<pre class="r"><code># Drainage Area calculated by DEM
+tDA = 68.55
 # convert tDA to m^2
 tDAm2=tDA*4046.86
 # units = m^2
 print(tDAm2)</code></pre>
-<pre><code>## [1] 242406.9</code></pre>
+<pre><code>## [1] 277412.3</code></pre>
 <p>Then we import data on precipitation from weather underground at the
 Ft. Wayne weather station (31 miles away)</p>
 <pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
@@ -637,19 +642,19 @@ where we do not</p>
 total23&lt;- subset(total, Year == &quot;2023&quot;)
 total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
 print(total23)</code></pre>
-<pre><code>##    Month Year     Pinlb     Poutlb  Premoved        QL inflowTP outflowTP
-## 1    Apr 2023 0.3253195 0.05421992 0.2710996  491874.4   0.3000     0.050
-## 3    Aug 2023        NA         NA        NA 1948600.9       NA        NA
-## 4    Dec 2023        NA         NA        NA   37702.7       NA        NA
-## 5    Feb 2023 3.3077607 1.48334933 1.8244114 4911207.2   0.3055     0.137
-## 6    Jan 2023 0.2580155 0.17862615 0.0793894  450130.0   0.2600     0.180
-## 8    Jul 2023 7.1854183        NaN       NaN 5414033.6   0.6020       NaN
-## 10   Jun 2023       NaN        NaN       NaN  231481.9      NaN       NaN
-## 12   Mar 2023 2.4545506 0.70130018 1.7532505 5301735.9   0.2100     0.060
-## 13   May 2023 6.2209732 1.94405411 4.2769190 5878716.0   0.4800     0.150
-## 15   Nov 2023       NaN        NaN       NaN       0.0      NaN       NaN
-## 18   Oct 2023        NA         NA        NA  617561.6       NA        NA
-## 20   Sep 2023       NaN        NaN       NaN  746323.1      NaN       NaN</code></pre>
+<pre><code>##    Month Year     Pinlb     Poutlb   Premoved         QL inflowTP outflowTP
+## 1    Apr 2023 0.3722980 0.06204967 0.31024836  562904.69   0.3000     0.050
+## 3    Aug 2023        NA         NA         NA 2229993.17       NA        NA
+## 4    Dec 2023        NA         NA         NA   43147.24       NA        NA
+## 5    Feb 2023 3.7854257 1.69755587 2.08786982 5620421.64   0.3055     0.137
+## 6    Jan 2023 0.2952749 0.20442108 0.09085381  515132.03   0.2600     0.180
+## 8    Jul 2023 8.2230455        NaN        NaN 6195859.88   0.6020       NaN
+## 10   Jun 2023       NaN        NaN        NaN  264909.56      NaN       NaN
+## 12   Mar 2023 2.8090058 0.80257308 2.00643271 6067345.49   0.2100     0.060
+## 13   May 2023 7.1193274 2.22478981 4.89453757 6727645.72   0.4800     0.150
+## 15   Nov 2023       NaN        NaN        NaN       0.00      NaN       NaN
+## 18   Oct 2023        NA         NA         NA  706741.98       NA        NA
+## 20   Sep 2023       NaN        NaN        NaN  854097.61      NaN       NaN</code></pre>
 <p>We can assume there is no P retained when there is no discharge:</p>
 <pre class="r"><code>library(dplyr)
 # first make all NaNs into NAs
@@ -675,7 +680,7 @@ of the year:</p>
 <pre class="r"><code>Removal = sum (total23$Premoved,na.rm=T)
 # This is the removal of P by pool by over the course of the 8 months that we have data for
 print(Removal)</code></pre>
-<pre><code>## [1] 12.65193</code></pre>
+<pre><code>## [1] 14.47897</code></pre>
 <p>We can estimate the other 4 months by estimating a low and a high
 value for P loading and P retention. <br> We have discharge data for all
 months, so we don’t want to just estimate loading, when we can estimate
@@ -702,9 +707,9 @@ total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*hi
 lowRemoval = sum (total23$Premovedlow,na.rm=T)
 highRemoval = sum (total23$Premovedhigh,na.rm=T)
 print(lowRemoval)</code></pre>
-<pre><code>## [1] 13.16215</code></pre>
+<pre><code>## [1] 15.06286</code></pre>
 <pre class="r"><code>print(highRemoval)</code></pre>
-<pre><code>## [1] 16.61321</code></pre>
+<pre><code>## [1] 19.01228</code></pre>
 </div>
 <div id="assumptions-in-this-budget" class="section level3">
 <h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
@@ -716,6 +721,588 @@ print(lowRemoval)</code></pre>
 <li>Nearby rainfall data is accurate for the site <br></li>
 </ol>
 </div>
+</div>
+<div id="lets-try-to-account-for-the-isolated-pools" class="section level2">
+<h2>Lets try to account for the isolated pools:</h2>
+<p>We’re going to try and use depth data to estimate the mass of
+phosphorus in the water of each pool and assume that decreasing mass is
+a result of uptake (either into the sediment or via losses through
+groundwater).</p>
+<p>For this we’re going to need estimates of water volume and phosphorus
+concentrations at various points in time.</p>
+<p>We will use point measurements of depth to estimate water volume
+until we get some actual depth sensors in the pools.</p>
+<p>Point measurements of depth are NOT IDEAL. They are not measured in
+the same place and they are not consistent across the pool. WE CAN DO
+BETTER. But we need more/better data to do better and this is just a
+rough estimate.</p>
+<pre class="r"><code># inputting area for each pool as estimated by Bob Midden using Acrobat&#39;s measure tool (units are in m2):
+aforb1=911.46
+aforb2=665.74
+aforb3=773.41
+aforb5=440.08
+aforb6=460.15
+aforb7=305.56
+aforb8=661.46</code></pre>
+<p>We will compare this method to an estimate of inflow based on
+rainfall and assuming that all P that enters the pools stays in the
+pools because they are isolated wetlands.</p>
+<pre class="r"><code>library(dplyr)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB_Samp master 12.19.csv&quot;)
+# change all -999 values to NA
+Pdata$tp_mgL=na_if(Pdata$tp_mgL, -999)
+Pdata$samp_wdepth_cm=na_if(Pdata$samp_wdepth_cm, -999)
+site1&lt;- subset(Pdata, location == &quot;FORB_01&quot;)
+# calculate the volume in m^3
+site1$volume = (site1$samp_wdepth_cm/100)*aforb1
+# Convert to liters (*1000)
+site1$volumeL=site1$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site1$Pmass = site1$volumeL * site1$tp_mgL</code></pre>
+<p>Lets plot this out for the first site to see what’s happening:</p>
+<pre class="r"><code>library(ggplot2)
+#convert datetime so R knows it&#39;s a date
+site1$datetime=as.POSIXct(site1$datetime,format=&quot;%m/%d/%Y&quot;)
+site1$datetime &lt;- as.Date(site1$datetime, format=&quot;%Y-%m-%d&quot;)
+
+# now plot it out
+p1&lt;-ggplot(data=site1, aes(x=datetime, y=Pmass)) +
+  geom_bar(stat=&quot;identity&quot;,width=20)+scale_x_date(date_breaks = &quot;1 month&quot;, date_labels =  &quot;%b %Y&quot;)+theme_classic()+ylab(&quot;P mass in water (mg)&quot;)
+print(p1)</code></pre>
+<pre><code>## Warning: Removed 64 rows containing missing values (`position_stack()`).</code></pre>
+<pre><code>## Warning: `position_stack()` requires non-overlapping x intervals</code></pre>
+<p><img src="data:image/png;base64,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" width="672" />
+So we’re going to break this down into a minimum and maximum estimate of
+P being retained by these pools: Our highest value was January 2023:
+with over 40,000 mg of P in the pool. We know that at least this much P
+was in the pool at a given time and are assuming that there is not an
+outflow because these are isolated pools and that most P is
+retained.</p>
+<p>So even if the P is being agitated and recycled and isn’t NEW there
+was at least this much P in the pool at any one point during the year.
+That is our minimum estimate of how much P is being retained by this
+pool.</p>
+<pre class="r"><code># take the maximum value and convert to lbs to get the low end estimate of P retention
+lowPpool1 = max(site1$Pmass,na.rm=TRUE)*2.20462e-6
+lowPpool1</code></pre>
+<pre><code>## [1] 0.0964523</code></pre>
+<p>Our maximum estimate assumes that EACH P measurement corresponds to a
+rain event and that ALL P from that event is retained and that the pool
+dries out in between events. This is likely not the case, but it’s our
+maximum where we are assuming that all the mass of P in our pool is
+being retained</p>
+<pre class="r"><code># take the sum of all P mass measurements to get the high end P retention in pool 1
+highPpool1 = sum(site1$Pmass,na.rm=TRUE)*2.20462e-6
+highPpool1</code></pre>
+<pre><code>## [1] 0.3997747</code></pre>
+<p>Now we can do the rest of the pools:</p>
+<pre class="r"><code>### Pool 2 ###
+site6&lt;- subset(Pdata, location == &quot;FORB_02&quot;)
+# calculate the volume in m^3
+site6$volume = (site6$samp_wdepth_cm/100)*aforb2
+# Convert to liters (*1000)
+site6$volumeL=site6$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site6$Pmass = site6$volumeL * site6$tp_mgL
+# calculate low end estimate
+lowPpool2 = max(site6$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool2 = sum(site6$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 3 ###
+site3&lt;- subset(Pdata, location == &quot;FORB_03&quot;)
+# calculate the volume in m^3
+site3$volume = (site3$samp_wdepth_cm/100)*aforb3
+# Convert to liters (*1000)
+site3$volumeL=site3$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site3$Pmass = site3$volumeL * site3$tp_mgL
+# calculate low end estimate
+lowPpool3 = max(site3$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool3 = sum(site3$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 5 ###
+site5&lt;- subset(Pdata, location == &quot;FORB_05&quot;)
+# calculate the volume in m^3
+site5$volume = (site5$samp_wdepth_cm/100)*aforb5
+# Convert to liters (*1000)
+site5$volumeL=site5$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site5$Pmass = site5$volumeL * site5$tp_mgL
+# calculate low end estimate
+lowPpool5 = max(site5$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool5 = sum(site5$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 6 ###
+site6&lt;- subset(Pdata, location == &quot;FORB_06&quot;)
+# calculate the volume in m^3
+site6$volume = (site6$samp_wdepth_cm/100)*aforb6
+# Convert to liters (*1000)
+site6$volumeL=site6$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site6$Pmass = site6$volumeL * site6$tp_mgL
+# calculate low end estimate
+lowPpool6 = max(site6$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool6 = sum(site6$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 7 ###
+site7&lt;- subset(Pdata, location == &quot;FORB_07&quot;)
+# calculate the volume in m^3
+site7$volume = (site7$samp_wdepth_cm/100)*aforb7
+# Convert to liters (*1000)
+site7$volumeL=site7$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site7$Pmass = site7$volumeL * site7$tp_mgL
+# calculate low end estimate
+lowPpool7 = max(site7$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool7 = sum(site7$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 8 ###
+site8&lt;- subset(Pdata, location == &quot;FORB_08&quot;)
+# calculate the volume in m^3
+site8$volume = (site8$samp_wdepth_cm/100)*aforb8
+# Convert to liters (*1000)
+site8$volumeL=site8$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site8$Pmass = site8$volumeL * site8$tp_mgL
+# calculate low end estimate (and covert to lbs at the same time)
+lowPpool8 = max(site8$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate (and covert to lbs at the same time)
+highPpool8 = sum(site8$Pmass,na.rm=TRUE)*2.20462e-6</code></pre>
+<p>Now we can sum up all of those values to get an estimate of the low
+and high end retention for the isolated pools at FORB (excluding Wetland
+complex 2 which has never been observed to have water in it)</p>
+<pre class="r"><code># Wetland complex 1 
+Comp1Plow = lowPpool1+lowPpool2+lowPpool3
+Comp1Phigh = highPpool1+highPpool2+highPpool3
+Comp1Plow</code></pre>
+<pre><code>## [1] 0.3227833</code></pre>
+<pre class="r"><code>Comp1Phigh</code></pre>
+<pre><code>## [1] 1.053466</code></pre>
+<pre class="r"><code># Wetland Complex 3
+Comp3Plow = lowPpool5+lowPpool6+lowPpool7+lowPpool8
+Comp3Phigh = highPpool5+highPpool6+highPpool7+highPpool8
+Comp3Plow</code></pre>
+<pre><code>## [1] 0.3471769</code></pre>
+<pre class="r"><code>Comp3Phigh</code></pre>
+<pre><code>## [1] 1.223496</code></pre>
+<pre class="r"><code># Both complexes: 
+IsoPlow = Comp1Plow + Comp3Plow
+IsoPhigh = Comp1Phigh + Comp3Phigh
+IsoPlow</code></pre>
+<pre><code>## [1] 0.6699602</code></pre>
+<pre class="r"><code>IsoPhigh</code></pre>
+<pre><code>## [1] 2.276963</code></pre>
+<div id="assumptions-in-this-budget-1" class="section level3">
+<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
+<ol style="list-style-type: decimal">
+<li>Volume estimates are accurate (they’re not; measurements at staff
+guages or depth sensors will improve this)<br></li>
+<li>Groundwater dynamics are captured <br></li>
+<li>Measuring this at the monthly scale is sufficient to capture P
+dynamics at these sites.</li>
+</ol>
+</div>
+</div>
+<div id="lets-try-a-different-method-to-account-for-these-pools-for-comparison" class="section level2">
+<h2>Lets try a different method to account for these pools for
+comparison!</h2>
+<p>In this new method our goal is to estimate the amount of water
+flowing into each pool and then use concentrations in the pool to
+estimate the amount of P entering the pool that corresponds to each pool
+during the month that we estimate discharge into the pool. We think this
+estimate is much more dicey than the previous one but wanted to compare
+and look for ways that it could be useful because if we could improve
+this method it would solve the issue with the last one that we are
+relying on monthly data to capture phosphorus dynamics.</p>
+<pre class="r"><code># load in the rainfall data
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+dayrain&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+dayrain = mutate(dayrain, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))</code></pre>
+<p>First we need to input the drainage area for each pool as measured by
+Bishwodeep with DEMs</p>
+<pre class="r"><code>DAp1 = 10.00 # this is a placeholder number
+DAp2 = 10.00 # this is a placeholder number
+DAp3 = 10.00 # this is a placeholder number
+DAp5 = 10.00 # this is a placeholder number
+DAp6 = 10.00 # this is a placeholder number
+DAp7 = 10.00 # this is a placeholder number
+DAp8 = 10.00 # this is a placeholder number
+# convert tDA to m^2
+DAp1m2=DAp1*4046.86
+DAp2m2=DAp1*4046.86
+DAp3m2=DAp1*4046.86
+DAp5m2=DAp1*4046.86
+DAp6m2=DAp1*4046.86
+DAp7m2=DAp1*4046.86
+DAp8m2=DAp1*4046.86</code></pre>
+<p>We’ll do the same thing as before and use pool 1 as an example before
+replicating for the whole batch. Basically the method for calculating
+runoff is the same as the budget using rainfall to estimate the main
+flow path (but with a much smaller drainage area).</p>
+<pre class="r"><code># Start out by calculating S (inches)
+CN=85
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# calculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp1m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<p>Now we’re going to use the concentration in the pool at each month to
+estimate the amount of P entering the pool. This probably isn’t a great
+estimate because the concentration in the pool is likely already
+somewhat diluted, OR is being loaded by what’s already in the pool that
+is released when water enters it, but it might give us a decent
+estimate. Also not as great when comparing monthly concentrations to
+continuous rainfall data, but that problem likely isn’t going to be
+solved unless we’re able to find a relationship between P concentration
+and turbidity or something like that and then get sensors for turbidity
+in the pools. <br></p>
+<p>Regardless of whether or not this is a good metric of concentration
+it should give us a decent estimate of the amount of runoff (where the
+majority of P should be coming from) that is entering the pool.</p>
+<pre class="r"><code># bring in our P data
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB_Samp master 12.19.csv&quot;)
+# change all -999 values to NA
+Pdata$tp_mgL=na_if(Pdata$tp_mgL, -999)
+# make the date value usable
+Pdata = mutate(Pdata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+Pdata$Date=as.POSIXct(Pdata$datetime,format=&quot;%Y-%m-%d&quot;)
+# subset out site 1 
+site1&lt;- subset(Pdata, location == &quot;FORB_01&quot;)
+# Summarize the dataset by month and year
+monthsite1=site1 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp1 &lt;- merge(monthsite1,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp1 &lt;- totalp1 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp1$massP &lt;- totalp1$tp_mgL*totalp1$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon1 = min(totalp1$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon1= max(totalp1$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp1$Pmasslow1=ifelse(test = is.na(totalp1$massP) , yes = totalp1$QL*lowPcon1, no = totalp1$massP)
+# then for the high estimate
+totalp1$Pmasshigh1=ifelse(test = is.na(totalp1$massP) , yes = totalp1$QL*highPcon1, no = totalp1$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp1$Pmasslow1,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 0.9834793</code></pre>
+<pre class="r"><code>sum(totalp1$Pmasshigh1,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 11.19153</code></pre>
+<p>Notes to self for refining this method: add in multiple years precip
+data, take average of multiple years for estimating pool retention</p>
+<p>Now we need to do all of this for the rest of the pools!</p>
+<pre class="r"><code>#### Pool 2 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp2m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 2 
+site2&lt;- subset(Pdata, location == &quot;FORB_02&quot;)
+# Summarize the dataset by month and year
+monthsite2=site2 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp2 &lt;- merge(monthsite2,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp2 &lt;- totalp2 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp2$massP &lt;- totalp2$tp_mgL*totalp2$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon2= min(totalp2$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon2= max(totalp2$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp2$Pmasslow2=ifelse(test = is.na(totalp2$massP) , yes = totalp2$QL*lowPcon2, no = totalp2$massP)
+# then for the high estimate
+totalp2$Pmasshigh2=ifelse(test = is.na(totalp2$massP) , yes = totalp2$QL*highPcon2, no = totalp2$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp2$Pmasslow2,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 0.3964581</code></pre>
+<pre class="r"><code>sum(totalp2$Pmasshigh2,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 2.464741</code></pre>
+<pre class="r"><code>#######################################
+
+#### Pool 3 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp3m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 3 
+site3&lt;- subset(Pdata, location == &quot;FORB_03&quot;)
+# Summarize the dataset by month and year
+monthsite3=site3 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp3 &lt;- merge(monthsite3,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp3 &lt;- totalp3 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp3$massP &lt;- totalp3$tp_mgL*totalp3$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon3= min(totalp3$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon3= max(totalp3$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp3$Pmasslow3=ifelse(test = is.na(totalp3$massP) , yes = totalp3$QL*lowPcon3, no = totalp3$massP)
+# then for the high estimate
+totalp3$Pmasshigh3=ifelse(test = is.na(totalp3$massP) , yes = totalp3$QL*highPcon3, no = totalp3$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp3$Pmasslow3,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 1.43788</code></pre>
+<pre class="r"><code>sum(totalp3$Pmasshigh3,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 5.110878</code></pre>
+<pre class="r"><code>#### Pool 5 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp5m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 5 
+site5&lt;- subset(Pdata, location == &quot;FORB_05&quot;)
+# Summarize the dataset by month and year
+monthsite5=site5 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp5 &lt;- merge(monthsite5,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp5 &lt;- totalp5 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp5$massP &lt;- totalp5$tp_mgL*totalp5$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon5= min(totalp5$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon5= max(totalp5$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp5$Pmasslow5=ifelse(test = is.na(totalp5$massP) , yes = totalp5$QL*lowPcon5, no = totalp5$massP)
+# then for the high estimate
+totalp5$Pmasshigh5=ifelse(test = is.na(totalp5$massP) , yes = totalp5$QL*highPcon5, no = totalp5$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp5$Pmasslow5,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 1.510178</code></pre>
+<pre class="r"><code>sum(totalp5$Pmasshigh5,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 4.799036</code></pre>
+<pre class="r"><code>#######################################
+
+#### Pool 6 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp6m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 6 
+site6&lt;- subset(Pdata, location == &quot;FORB_06&quot;)
+# Summarize the dataset by month and year
+monthsite6=site6 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp6 &lt;- merge(monthsite6,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp6 &lt;- totalp6 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp6$massP &lt;- totalp6$tp_mgL*totalp6$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon6= min(totalp6$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon6= max(totalp6$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp6$Pmasslow6=ifelse(test = is.na(totalp6$massP) , yes = totalp6$QL*lowPcon6, no = totalp6$massP)
+# then for the high estimate
+totalp6$Pmasshigh6=ifelse(test = is.na(totalp6$massP) , yes = totalp6$QL*highPcon6, no = totalp6$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp6$Pmasslow6,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 2.8979</code></pre>
+<pre class="r"><code>sum(totalp6$Pmasshigh6,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 8.228487</code></pre>
+<pre class="r"><code>#######################################
+
+
+#### Pool 7 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp7m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 7 
+site7&lt;- subset(Pdata, location == &quot;FORB_07&quot;)
+# Summarize the dataset by month and year
+monthsite7=site7 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp7 &lt;- merge(monthsite7,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp7 &lt;- totalp7 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp7$massP &lt;- totalp7$tp_mgL*totalp7$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon7= min(totalp7$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon7= max(totalp7$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp7$Pmasslow7=ifelse(test = is.na(totalp7$massP) , yes = totalp7$QL*lowPcon7, no = totalp7$massP)
+# then for the high estimate
+totalp7$Pmasshigh7=ifelse(test = is.na(totalp7$massP) , yes = totalp7$QL*highPcon7, no = totalp7$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp7$Pmasslow7,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 4.358478</code></pre>
+<pre class="r"><code>sum(totalp7$Pmasshigh7,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 15.93647</code></pre>
+<pre class="r"><code>#######################################
+
+#### Pool 8 ####
+# recalculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAp8m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># subset out site 8 
+site8&lt;- subset(Pdata, location == &quot;FORB_08&quot;)
+# Summarize the dataset by month and year
+monthsite8=site8 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># merge the datasets
+totalp8 &lt;- merge(monthsite8,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# convert NaNs to NAs
+totalp8 &lt;- totalp8 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalp8$massP &lt;- totalp8$tp_mgL*totalp8$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon8= min(totalp8$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon8= max(totalp8$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalp8$Pmasslow8=ifelse(test = is.na(totalp8$massP) , yes = totalp8$QL*lowPcon8, no = totalp8$massP)
+# then for the high estimate
+totalp8$Pmasshigh8=ifelse(test = is.na(totalp8$massP) , yes = totalp8$QL*highPcon8, no = totalp8$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalp8$Pmasslow8,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 1.466468</code></pre>
+<pre class="r"><code>sum(totalp8$Pmasshigh8,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 7.988</code></pre>
+<pre class="r"><code>#######################################</code></pre>
 </div>
 
 

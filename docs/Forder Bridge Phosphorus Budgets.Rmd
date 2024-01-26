@@ -207,9 +207,11 @@ We will assume that: $$ I_a = 0.2S$$ as a standard correction.
 
 CN will depend on the soil of the site. In this case it's probably around 80, fairly poorly drained, but we may want to come back and think abit more about what our curve number should be. <br>
 
+The drainage area we are using here accounts mainly for the drainage entering through the culvert which we expect the majority of to run through the wetland and out the stream into the Maumee river. The majority of this area is the field to the southeast of the FORB land parcel. 
+
 ```{r}
-# Drainage Area calculated by StreamStats
-tDA = 59.9
+# Drainage Area calculated by DEM
+tDA = 68.55
 # convert tDA to m^2
 tDAm2=tDA*4046.86
 # units = m^2
@@ -349,3 +351,317 @@ print(highRemoval)
   4. Tile drains are accounted for (they're not) <br>
   5. Nearby rainfall data is accurate for the site <br>
 
+## Lets try to account for the isolated pools: 
+
+We're going to try and use depth data to estimate the mass of phosphorus in the water of each pool and assume that decreasing mass is a result of uptake (either into the sediment or via losses through groundwater).
+
+For this we're going to need estimates of water volume and phosphorus concentrations at various points in time. 
+
+We will use point measurements of depth to estimate water volume until we get some actual depth sensors in the pools. 
+
+Point measurements of depth are NOT IDEAL. They are not measured in the same place and they are not consistent across the pool. WE CAN DO BETTER. But we need more/better data to do better and this is just a rough estimate. 
+```{r}
+# inputting area for each pool as estimated by Bob Midden using Acrobat's measure tool (units are in m2):
+aforb1=911.46
+aforb2=665.74
+aforb3=773.41
+aforb5=440.08
+aforb6=460.15
+aforb7=305.56
+aforb8=661.46
+```
+We will compare this method to an estimate of inflow based on rainfall and assuming that all P that enters the pools stays in the pools because they are isolated wetlands.
+
+```{r}
+library(dplyr)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB_Samp master 12.19.csv")
+# change all -999 values to NA
+Pdata$tp_mgL=na_if(Pdata$tp_mgL, -999)
+Pdata$samp_wdepth_cm=na_if(Pdata$samp_wdepth_cm, -999)
+site1<- subset(Pdata, location == "FORB_01")
+# calculate the volume in m^3
+site1$volume = (site1$samp_wdepth_cm/100)*aforb1
+# Convert to liters (*1000)
+site1$volumeL=site1$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site1$Pmass = site1$volumeL * site1$tp_mgL
+```
+
+Lets plot this out for the first site to see what's happening: 
+```{r}
+library(ggplot2)
+#convert datetime so R knows it's a date
+site1$datetime=as.POSIXct(site1$datetime,format="%m/%d/%Y")
+site1$datetime <- as.Date(site1$datetime, format="%Y-%m-%d")
+
+# now plot it out
+p1<-ggplot(data=site1, aes(x=datetime, y=Pmass)) +
+  geom_bar(stat="identity",width=20)+scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y")+theme_classic()+ylab("P mass in water (mg)")
+print(p1)
+```
+So we're going to break this down into a minimum and maximum estimate of P being retained by these pools: 
+Our highest value was January 2023: with over 40,000 mg of P in the pool. We know that at least this much P was in the pool at a given time and are assuming that there is not an outflow because these are isolated pools and that most P is retained. 
+
+So even if the P is being agitated and recycled and isn't NEW there was at least this much P in the pool at any one point during the year. That is our minimum estimate of how much P is being retained by this pool. 
+```{r}
+# take the maximum value and convert to lbs to get the low end estimate of P retention
+lowPpool1 = max(site1$Pmass,na.rm=TRUE)*2.20462e-6
+lowPpool1
+```
+Our maximum estimate assumes that EACH P measurement corresponds to a rain event and that ALL P from that event is retained and that the pool dries out in between events. This is likely not the case, but it's our maximum where we are assuming that all the mass of P in our pool is being retained
+```{r}
+# take the sum of all P mass measurements to get the high end P retention in pool 1
+highPpool1 = sum(site1$Pmass,na.rm=TRUE)*2.20462e-6
+highPpool1
+```
+Now we can do the rest of the pools: 
+```{r}
+### Pool 2 ###
+site6<- subset(Pdata, location == "FORB_02")
+# calculate the volume in m^3
+site6$volume = (site6$samp_wdepth_cm/100)*aforb2
+# Convert to liters (*1000)
+site6$volumeL=site6$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site6$Pmass = site6$volumeL * site6$tp_mgL
+# calculate low end estimate
+lowPpool2 = max(site6$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool2 = sum(site6$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 3 ###
+site3<- subset(Pdata, location == "FORB_03")
+# calculate the volume in m^3
+site3$volume = (site3$samp_wdepth_cm/100)*aforb3
+# Convert to liters (*1000)
+site3$volumeL=site3$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site3$Pmass = site3$volumeL * site3$tp_mgL
+# calculate low end estimate
+lowPpool3 = max(site3$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool3 = sum(site3$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 5 ###
+site5<- subset(Pdata, location == "FORB_05")
+# calculate the volume in m^3
+site5$volume = (site5$samp_wdepth_cm/100)*aforb5
+# Convert to liters (*1000)
+site5$volumeL=site5$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site5$Pmass = site5$volumeL * site5$tp_mgL
+# calculate low end estimate
+lowPpool5 = max(site5$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool5 = sum(site5$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 6 ###
+site6<- subset(Pdata, location == "FORB_06")
+# calculate the volume in m^3
+site6$volume = (site6$samp_wdepth_cm/100)*aforb6
+# Convert to liters (*1000)
+site6$volumeL=site6$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site6$Pmass = site6$volumeL * site6$tp_mgL
+# calculate low end estimate
+lowPpool6 = max(site6$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool6 = sum(site6$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 7 ###
+site7<- subset(Pdata, location == "FORB_07")
+# calculate the volume in m^3
+site7$volume = (site7$samp_wdepth_cm/100)*aforb7
+# Convert to liters (*1000)
+site7$volumeL=site7$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site7$Pmass = site7$volumeL * site7$tp_mgL
+# calculate low end estimate
+lowPpool7 = max(site7$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate
+highPpool7 = sum(site7$Pmass,na.rm=TRUE)*2.20462e-6
+
+### Pool 8 ###
+site8<- subset(Pdata, location == "FORB_08")
+# calculate the volume in m^3
+site8$volume = (site8$samp_wdepth_cm/100)*aforb8
+# Convert to liters (*1000)
+site8$volumeL=site8$volume * 1000
+# calculate mass by multiplying concentration (mg/L) * liters = mg P
+site8$Pmass = site8$volumeL * site8$tp_mgL
+# calculate low end estimate (and covert to lbs at the same time)
+lowPpool8 = max(site8$Pmass,na.rm=TRUE)*2.20462e-6
+# calculate high end estimate (and covert to lbs at the same time)
+highPpool8 = sum(site8$Pmass,na.rm=TRUE)*2.20462e-6
+```
+
+Now we can sum up all of those values to get an estimate of the low and high end retention for the isolated pools at FORB (excluding Wetland complex 2 which has never been observed to have water in it)
+
+```{r}
+# Wetland complex 1 
+Comp1Plow = lowPpool1+lowPpool2+lowPpool3
+Comp1Phigh = highPpool1+highPpool2+highPpool3
+Comp1Plow
+Comp1Phigh
+# Wetland Complex 3
+Comp3Plow = lowPpool5+lowPpool6+lowPpool7+lowPpool8
+Comp3Phigh = highPpool5+highPpool6+highPpool7+highPpool8
+Comp3Plow
+Comp3Phigh
+
+
+# Both complexes: 
+IsoPlow = Comp1Plow + Comp3Plow
+IsoPhigh = Comp1Phigh + Comp3Phigh
+IsoPlow
+IsoPhigh
+```
+### ***ASSUMPTIONS IN THIS BUDGET:*** 
+  1. Volume estimates are accurate (they're not; measurements at staff guages or depth sensors will improve this)<br>
+  2. Groundwater dynamics are captured <br>
+  3. Measuring this at the monthly scale is sufficient to capture P dynamics at these sites. 
+  
+  
+  
+
+
+## Lets try a different method to account for these pools for comparison! 
+
+In this new method our goal is to estimate the amount of water flowing into each wetland complex and then use average concentrations in the complex to estimate the amount of P entering the complex during the month that we estimate discharge into the pool. We think this estimate is much more dicey than the previous one but wanted to compare and look for ways that it could be useful because if we could improve this method it would solve the issue with the last one that we are relying on monthly data to capture phosphorus dynamics. <br>
+
+We are using the full complexes as opposed to individual pools because there was a lot of overlap in terms of drainage area between the different pools
+
+```{r}
+# load in the rainfall data
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+dayrain<-read.csv("Ftwaynerainfall.csv")
+# make it recognize that it's a date-time value
+dayrain = mutate(dayrain, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+```
+
+First we need to input the drainage area for each pool as measured by Bishwodeep with DEMs
+```{r}
+DAc1 = 10.00 # this is a placeholder number
+DAc3 = 10.00 # this is a placeholder number
+
+# convert tDA to m^2
+DAc1m2=DAc1*4046.86
+DAc3m2=DAc3*4046.86
+
+```
+We'll do the same thing as before and use pool 1 as an example before replicating for the whole batch. Basically the method for calculating runoff is the same as the budget using rainfall to estimate the main flow path (but with a much smaller drainage area).
+
+
+```{r}
+# Start out by calculating S (inches)
+CN=85
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don't need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# calculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip<=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAc1m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the dataset by month and year
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(QL=sum(QL,na.rm=T))
+```  
+Now we're going to use the concentration in the pool at each month to estimate the amount of P entering the pool. This probably isn't a great estimate because the concentration in the pool is likely already somewhat diluted, OR is being loaded by what's already in the pool that is released when water enters it, but it might give us a decent estimate. Also not as great when comparing monthly concentrations to continuous rainfall data, but that problem likely isn't going to be solved unless we're able to find a relationship between P concentration and turbidity or something like that and then get sensors for turbidity in the pools. <br>
+
+Regardless of whether or not this is a good metric of concentration it should give us a decent estimate of the amount of runoff (where the majority of P should be coming from) that is entering the pool.
+
+```{r}
+# bring in our P data
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB_Samp master 12.19.csv")
+# change all -999 values to NA
+Pdata$tp_mgL=na_if(Pdata$tp_mgL, -999)
+# make the date value usable
+Pdata = mutate(Pdata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+Pdata$Date=as.POSIXct(Pdata$datetime,format="%Y-%m-%d")
+# subset out complex 1 
+site1<- subset(Pdata, location == "FORB_01" |location == "FORB_02" | location == "FORB_03" )
+# Summarize the dataset by month and year (this takes the average of all values collected for each month between the different pools)
+monthsite1=site1 %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(tp_mgL=mean(tp_mgL,na.rm=T))
+# merge the datasets
+totalc1 <- merge(monthsite1,monthrain,by=c("Month","Year"),all=TRUE)
+# convert NaNs to NAs
+totalc1 <- totalc1 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalc1$massP <- totalc1$tp_mgL*totalc1$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon1 = min(totalc1$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon1= max(totalc1$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalc1$Pmasslow1=ifelse(test = is.na(totalc1$massP) , yes = totalc1$QL*lowPcon1, no = totalc1$massP)
+# then for the high estimate
+totalc1$Pmasshigh1=ifelse(test = is.na(totalc1$massP) , yes = totalc1$QL*highPcon1, no = totalc1$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalc1$Pmasslow1,na.rm=T)*2.20462e-6
+sum(totalc1$Pmasshigh1,na.rm=T)*2.20462e-6
+```
+
+Notes to self for refining this method: 
+  add in multiple years precip data, take average of multiple years for estimating pool retention
+
+
+Now we need to do all of this for wetland complex 3! Wetland complex 2 is always dry so we're not really sure what we could use as P concentrations for that one.  
+```{r}
+# calculate runoff (inches) again for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip<=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=DAc2m2*dayrain$Q
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the dataset by month and year
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(QL=sum(QL,na.rm=T))
+
+# subset out complex 2
+site2<- subset(Pdata, location == "FORB_05" |location == "FORB_06" | location == "FORB_07"|location == "FORB_08" )
+# Summarize the dataset by month and year (this takes the average of all values collected for each month between the different pools)
+monthsite2=site2 %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(tp_mgL=mean(tp_mgL,na.rm=T))
+# merge the datasets
+totalc2 <- merge(monthsite2,monthrain,by=c("Month","Year"),all=TRUE)
+# convert NaNs to NAs
+totalc2 <- totalc2 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# calculate the amount of P entering the pool for each month! (units are mg) 
+totalc2$massP <- totalc2$tp_mgL*totalc2$QL
+
+## make high and low estimates for months with discharge but no concentration data
+# our low estimate is the lowest concentration we saw: 
+lowPcon2 = min(totalc2$tp_mgL,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon2= max(totalc2$tp_mgL,na.rm = TRUE)
+# first for the low estimate
+totalc2$Pmasslow2=ifelse(test = is.na(totalc2$massP) , yes = totalc2$QL*lowPcon2, no = totalc2$massP)
+# then for the high estimate
+totalc2$Pmasshigh2=ifelse(test = is.na(totalc2$massP) , yes = totalc2$QL*highPcon2, no = totalc2$massP)
+
+# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
+sum(totalc2$Pmasslow2,na.rm=T)*2.20462e-6
+sum(totalc2$Pmasshigh2,na.rm=T)*2.20462e-6
+```
