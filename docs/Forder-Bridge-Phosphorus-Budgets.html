@@ -357,8 +357,8 @@ display: none;
 </div>
 
 
-<div id="odnr-budgets" class="section level2">
-<h2>ODNR Budgets:</h2>
+<div id="h0-odnr-budgets" class="section level2">
+<h2>H0: ODNR Budgets:</h2>
 <p>ODNR makes budgets for P reduction in potential wetlands using the
 following method:</p>
 <ol style="list-style-type: decimal">
@@ -432,16 +432,767 @@ et al. 2019: 3.2 pounds P/ acre / year removal</p>
 <h3><strong><em>ASSUMPTIONS IN ODNR BUDGETS:</em></strong></h3>
 <p>Not that many, but boy are they big assumptions<br> 1. Drainage area
 is accurate (it’s not)<br> 2. SPARROW gives an accurate measurement of P
-loading<br> 3. Literature estimates of loading are accurate <br> *
-Honestly this probably isn’t the worst assumption if only because their
-estimates are so wide ranging.<br> 4. Seasonal variation does not matter
-to whoever is looking for this budget. <br> 5. Annual variation does not
-play a major role in phosphorus loading, or retention, or hydrologic
-dynamics.<br></p>
+loading for wetlands <br> 3. Literature estimates of retention are
+accurate <br> * Honestly this probably isn’t the worst assumption if
+only because their estimates are so wide ranging.<br> 4. Seasonal
+variation does not matter to whoever is looking for this budget. <br> 5.
+Annual variation does not play a major role in phosphorus loading, or
+retention, or hydrologic dynamics.<br></p>
+</div>
+</div>
+<div id="h1-rainfall-at-ft.-wayne-budget-drainage-area-from-high-resolution-dem" class="section level2">
+<h2>H1: Rainfall at Ft. Wayne Budget, Drainage area from high resolution
+DEM</h2>
+<p>We’ll use data from Ft. Wayne Indiana (31 miles away) downloaded from
+Weather Underground.<br></p>
+<p>We’ll calculating runoff using the curve number of the soils: We will
+calculate the runoff that flows through the wetland during rain events
+based on some information about soil properties.</p>
+<p><span class="math display">\[Q=\begin{cases}
+0 \text{ for } P \le I_a\\
+{(P-I_a)^2 \over P-I_a+S} \text{ for } P &gt; I_a
+\end{cases}\]</span></p>
+<p>where: <br> Q = runoff (inches)<br> P = rainfall (inches)<br> S =
+potential maximum soil moisture retention after runoff begins
+(inches)<br> I_a = initial abstraction (inches; this is the amount of
+rainfall needed for runoff to occur)<br></p>
+<p>The runoff curve (CN) is used to calculate S <span class="math display">\[S = {1000 \over CN} -10\]</span> We will assume
+that: <span class="math display">\[ I_a = 0.2S\]</span> as a standard
+correction. (See here <a href="https://onlinelibrary.wiley.com/doi/10.1111/j.1752-1688.2006.tb04481.x" class="uri">https://onlinelibrary.wiley.com/doi/10.1111/j.1752-1688.2006.tb04481.x</a>
+for discussion of whether that is a good correction but we’re going to
+power through with it)</p>
+<p>CN will depend on the soil of the site. In this case it’s probably
+around 80, fairly poorly drained, but we may want to come back and think
+abit more about what our curve number should be. <br></p>
+<p>The drainage area we are using here accounts mainly for the drainage
+entering through the culvert which we expect the majority of to run
+through the wetland and out the stream into the Maumee river. The
+majority of this area is the field to the southeast of the FORB land
+parcel.</p>
+<pre class="r"><code># Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
+tDA = 164.41
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)</code></pre>
+<pre><code>## [1] 665344.3</code></pre>
+<p>Then we import data on precipitation from weather underground at the
+Ft. Wayne weather station (31 miles away)</p>
+<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata</code></pre>
+<p>Then we calculate runoff as above.</p>
+<pre class="r"><code># Start out by calculating S (inches)
+CN=85
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# calculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2*dayrain$Q
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)</code></pre>
+<pre><code>## [1] 570028366</code></pre>
+<pre class="r"><code>sum(dayrain$QL)</code></pre>
+<pre><code>## [1] 71443877</code></pre>
+<pre class="r"><code># Sum up data to get monthly values
+library(lubridate)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;lubridate&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     date, intersect, setdiff, union</code></pre>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<pre><code>## Warning: package &#39;tidyverse&#39; was built under R version 4.3.2</code></pre>
+<pre><code>## Warning: package &#39;forcats&#39; was built under R version 4.3.2</code></pre>
+<pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+## ✔ forcats 1.0.0     ✔ stringr 1.5.0
+## ✔ ggplot2 3.4.4     ✔ tibble  3.2.1
+## ✔ purrr   1.0.2     ✔ tidyr   1.3.0
+## ✔ readr   2.1.4</code></pre>
+<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## ✖ dplyr::filter() masks stats::filter()
+## ✖ dplyr::lag()    masks stats::lag()
+## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
+<pre class="r"><code>dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
+# merge the datasets
+total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb</code></pre>
+<p>Now we need to look at where we have data and attempt to extrapolate
+where we do not</p>
+<pre class="r"><code># To start lets look at just 2023
+total23&lt;- subset(total, Year == &quot;2023&quot;)
+total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)</code></pre>
+<pre><code>##    Month Year      Pinlb    Poutlb   Premoved         QL inflowTP outflowTP
+## 1    Apr 2023  0.8929178 0.1488196  0.7440982  1350068.0   0.3000     0.050
+## 3    Aug 2023         NA        NA         NA  5348405.2       NA        NA
+## 4    Dec 2023         NA        NA         NA   103484.1       NA        NA
+## 5    Feb 2023  9.0789473 4.0714101  5.0075372 13479993.0   0.3055     0.137
+## 6    Jan 2023  0.7081859 0.4902826  0.2179034  1235490.3   0.2600     0.180
+## 8    Jul 2023 19.7221139       NaN        NaN 14860121.4   0.6020       NaN
+## 10   Jun 2023        NaN       NaN        NaN   635357.9      NaN       NaN
+## 12   Mar 2023  6.7371064 1.9248875  4.8122188 14551893.1   0.2100     0.060
+## 13   May 2023 17.0749616 5.3359255 11.7390361 16135554.1   0.4800     0.150
+## 15   Nov 2023        NaN       NaN        NaN        0.0      NaN       NaN
+## 18   Oct 2023         NA        NA         NA  1695046.7       NA        NA
+## 20   Sep 2023        NaN       NaN        NaN  2048463.7      NaN       NaN</code></pre>
+<p>We can assume there is no P retained when there is no discharge:</p>
+<pre class="r"><code>library(dplyr)
+# first make all NaNs into NAs
+total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)</code></pre>
+<p>We have one event with loading data but no retention data. Here we
+can estimate retention based on the average retention of the other
+months.</p>
+<pre class="r"><code># tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.6188732</code></pre>
+<p>There’s a pretty good amount of variation here, but lets power
+through and use the average.</p>
+<pre class="r"><code># replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)</code></pre>
+<p>Now we can sum up the total P removed by the wetland over the course
+of the year:</p>
+<pre class="r"><code>Removal = sum (total23$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 8 months that we have data for
+print(Removal)</code></pre>
+<pre><code>## [1] 34.72628</code></pre>
+<p>We can estimate the other 4 months by estimating a low and a high
+value for P loading and P retention. <br> We have discharge data for all
+months, so we don’t want to just estimate loading, when we can estimate
+concentration instead:</p>
+<pre class="r"><code># our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 36.1267</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 45.59897</code></pre>
+<div id="assumptions-in-this-budget" class="section level3">
+<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
+<ol style="list-style-type: decimal">
+<li>Drainage area is accurate (it accounts for only topographic drainage
+area) <br></li>
+<li>Curve number is a good choice for this site on average (we chose a
+higher number to better account for sub-surface drainage) <br></li>
+<li>Groundwater dynamics are captured <br></li>
+<li>Tile drains are accounted for (they’re not) <br></li>
+<li>Nearby rainfall data is accurate for the site <br></li>
+<li>Storm events do not change phosphorus retention dynamics</li>
+</ol>
+</div>
+</div>
+<div id="h2-rainfall-from-ft.-wayne-expert-estimate-of-drainage-area" class="section level2">
+<h2>H2: Rainfall from Ft. Wayne, expert estimate of drainage area</h2>
+<pre class="r"><code># Drainage Area is an expert estimate by the District Administrator of the Paulding County Soil and Water Conservation District which accounts for both surface and sub-surface drainage
+tDA = 16.5
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)</code></pre>
+<pre><code>## [1] 66773.19</code></pre>
+<p>Then we import data on precipitation from weather underground at the
+Ft. Wayne weather station (31 miles away)</p>
+<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata</code></pre>
+<p>Then we calculate runoff as above.</p>
+<pre class="r"><code># Start out by calculating S (inches)
+CN=85
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# caculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2*dayrain$Q
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)</code></pre>
+<pre><code>## [1] 57207396</code></pre>
+<pre class="r"><code>sum(dayrain$QL)</code></pre>
+<pre><code>## [1] 7170026</code></pre>
+<pre class="r"><code># Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading as above.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
+# merge the datasets
+total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# Extrapolate where we don&#39;t have data
+total23&lt;- subset(total, Year == &quot;2023&quot;)
+total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)</code></pre>
+<pre><code>##    Month Year      Pinlb     Poutlb   Premoved         QL inflowTP outflowTP
+## 1    Apr 2023 0.08961222 0.01493537 0.07467685  135491.28   0.3000     0.050
+## 3    Aug 2023         NA         NA         NA  536759.84       NA        NA
+## 4    Dec 2023         NA         NA         NA   10385.55       NA        NA
+## 5    Feb 2023 0.91115279 0.40860207 0.50255072 1352836.72   0.3055     0.137
+## 6    Jan 2023 0.07107273 0.04920420 0.02186853  123992.39   0.2600     0.180
+## 8    Jul 2023 1.97928885        NaN        NaN 1491344.83   0.6020       NaN
+## 10   Jun 2023        NaN        NaN        NaN   63763.79      NaN       NaN
+## 12   Mar 2023 0.67612831 0.19317952 0.48294879 1460411.39   0.2100     0.060
+## 13   May 2023 1.71362366 0.53550739 1.17811626 1619345.80   0.4800     0.150
+## 15   Nov 2023        NaN        NaN        NaN       0.00      NaN       NaN
+## 18   Oct 2023         NA         NA         NA  170112.95       NA        NA
+## 20   Sep 2023        NaN        NaN        NaN  205581.48      NaN       NaN</code></pre>
+<pre class="r"><code>library(dplyr)
+# first make all NaNs into NAs
+total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)
+# We have one event with loading data but no retention data. Here we can estimate retention based on the average retention of the other months. 
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.6188732</code></pre>
+<pre class="r"><code># replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+Removal = sum (total23$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 8 months that we have data for
+print(Removal)</code></pre>
+<pre><code>## [1] 3.48509</code></pre>
+<pre class="r"><code># our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 3.625634</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 4.57626</code></pre>
+<div id="assumptions-in-this-budget-1" class="section level3">
+<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
+<ol style="list-style-type: decimal">
+<li>Drainage area is accurate (it may not account for the full
+topographic drainage area)<br></li>
+<li>Curve number is a good choice for this site <br></li>
+<li>Groundwater dynamics are captured <br></li>
+<li>Tile drains are accounted for (they’re not) <br></li>
+<li>Nearby rainfall data is accurate for the site <br></li>
+</ol>
+</div>
+</div>
+<div id="h3-rainfall-from-ft.-wayne-expert-estimate-of-drainage-area-estimates-of-runoff-from-pease-et-al.-2018" class="section level2">
+<h2>H3: Rainfall from Ft. Wayne, expert estimate of drainage area,
+estimates of runoff from Pease et al. 2018</h2>
+<pre class="r"><code># Drainage Area delineated by expert opinion
+tDA = 16.5
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)</code></pre>
+<pre><code>## [1] 66773.19</code></pre>
+<p>Then we import data on precipitation from weather underground at the
+Ft. Wayne weather station (31 miles away)</p>
+<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata</code></pre>
+<p>Then we estimate runoff according to Pease et al. 2018 with ~7% of
+rainfall as surface runoff, and 31% of rainfall as subsurface runoff for
+a total of 38% of rainfall as runoff</p>
+<pre class="r"><code># don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# scale up to the entire drainage area
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)</code></pre>
+<pre><code>## [1] 57207396</code></pre>
+<pre class="r"><code># Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(precipL=sum(precipL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
+monthrain$QL = monthrain$precipL * 0.38
+sum(monthrain$QL)</code></pre>
+<pre><code>## [1] 21738811</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
+# merge the datasets
+total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# Extrapolate where we don&#39;t have data
+total23&lt;- subset(total, Year == &quot;2023&quot;)
+total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)</code></pre>
+<pre><code>##    Month Year     Pinlb    Poutlb  Premoved        QL inflowTP outflowTP
+## 1    Apr 2023 0.8951475 0.1491912 0.7459562 1353439.1   0.3000     0.050
+## 3    Aug 2023        NA        NA        NA 1598347.2       NA        NA
+## 4    Dec 2023        NA        NA        NA 1056971.5       NA        NA
+## 5    Feb 2023 1.8057540 0.8097817 0.9959724 2681098.5   0.3055     0.137
+## 6    Jan 2023 1.0306984 0.7135604 0.3171380 1798140.6   0.2600     0.180
+## 8    Jul 2023 4.5334248       NaN       NaN 3415822.6   0.6020       NaN
+## 10   Jun 2023       NaN       NaN       NaN  882957.9      NaN       NaN
+## 12   Mar 2023 1.2263521 0.3503863 0.8759658 2648873.8   0.2100     0.060
+## 13   May 2023 2.7758098 0.8674405 1.9083692 2623094.0   0.4800     0.150
+## 15   Nov 2023       NaN       NaN       NaN  418921.6      NaN       NaN
+## 18   Oct 2023        NA        NA        NA 2210617.3       NA        NA
+## 20   Sep 2023       NaN       NaN       NaN 1050526.6      NaN       NaN</code></pre>
+<pre class="r"><code>#We can assume there is no P retained when there is no discharge: 
+library(dplyr)
+# first make all NaNs into NAs
+total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)
+#We have one event with loading data but no retention data. Here we can estimate retention based on the average retention of the other months. 
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.6188732</code></pre>
+<pre class="r"><code># replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+Removal = sum (total23$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 8 months that we have data for
+print(Removal)</code></pre>
+<pre><code>## [1] 7.649017</code></pre>
+<pre class="r"><code># our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 8.677289</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 15.63241</code></pre>
+<div id="assumptions-in-this-budget-2" class="section level3">
+<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
+<ol style="list-style-type: decimal">
+<li>Drainage area is accurate (it’s focused mostly on sub-surface
+drainage)<br></li>
+<li>Curve number is a good choice for this site <br></li>
+<li>Groundwater dynamics are captured <br></li>
+<li>Tile drains are accounted for (they’re not) <br></li>
+<li>Nearby rainfall data is accurate for the site <br></li>
+<li>Storm events do not change phosphorus retention dynamics</li>
+</ol>
+</div>
+</div>
+<div id="h4-rainfall-from-ft.-wayne-high-res-dem-for-surface-drainage-area-expert-estimate-of-subsurface-drainage-area" class="section level2">
+<h2>H4: Rainfall from Ft. Wayne, high res DEM for surface drainage area,
+expert estimate of subsurface drainage area</h2>
+<pre class="r"><code># Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
+tDAsur = 164.41
+tDAsub = 16.5
+# convert tDA to m^2
+tDAm2sur=tDAsur*4046.86
+tDAm2sub=tDAsub*4046.86</code></pre>
+<p>Then we import data on precipitation from weather underground at the
+Ft. Wayne weather station (31 miles away)</p>
+<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata</code></pre>
+<p>Then we calculate runoff as above.</p>
+<pre class="r"><code># Start out by calculating S (inches)
+CN=80
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# caculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2sur*dayrain$Q
+dayrain$fullprecip=tDAm2sur*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)</code></pre>
+<pre><code>## [1] 570028366</code></pre>
+<pre class="r"><code>sum(dayrain$QL)</code></pre>
+<pre><code>## [1] 40783055</code></pre>
+<pre class="r"><code># Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
+# merge the datasets
+total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# To start lets look at just 2023
+total23&lt;- subset(total, Year == &quot;2023&quot;)
+total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)</code></pre>
+<pre><code>##    Month Year      Pinlb     Poutlb   Premoved         QL inflowTP outflowTP
+## 1    Apr 2023  0.2941601 0.04902668 0.24513341   444762.2   0.3000     0.050
+## 3    Aug 2023         NA         NA         NA  2994261.4       NA        NA
+## 4    Dec 2023         NA         NA         NA        0.0       NA        NA
+## 5    Feb 2023  5.2684047 2.36259064 2.90581404  7822278.9   0.3055     0.137
+## 6    Jan 2023  0.1154885 0.07995355 0.03553491   201479.4   0.2600     0.180
+## 8    Jul 2023 11.4346318        NaN        NaN  8615710.2   0.6020       NaN
+## 10   Jun 2023        NaN        NaN        NaN   108595.3      NaN       NaN
+## 12   Mar 2023  4.2681708 1.21947738 3.04869344  9219086.4   0.2100     0.060
+## 13   May 2023 10.9287229 3.41522591 7.51349701 10327461.0   0.4800     0.150
+## 15   Nov 2023        NaN        NaN        NaN        0.0      NaN       NaN
+## 18   Oct 2023         NA         NA         NA   202085.5       NA        NA
+## 20   Sep 2023        NaN        NaN        NaN   847334.4      NaN       NaN</code></pre>
+<pre class="r"><code>#We can assume there is no P retained when there is no discharge: 
+library(dplyr)
+# first make all NaNs into NAs
+total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)
+
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.6188732</code></pre>
+<pre class="r"><code># replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 21.41676</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 25.41762</code></pre>
+<p>Now we repeat for subsurface runoff!</p>
+<pre class="r"><code># Reload our rainfall dataset
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
+# Rename so our old code keeps working 
+dayrain=raindata
+# scale up to the entire drainage area
+dayrain$fullprecip=tDAm2sub*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)</code></pre>
+<pre><code>## [1] 57207396</code></pre>
+<pre class="r"><code># Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the rainfall by month and year but just for rainfall data
+monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(precipL=sum(precipL,na.rm=T))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre class="r"><code># We expect that subsurface drainage will be ~ 31% of total runoff (Pease et al. 2018)
+monthrain$QL = monthrain$precipL * 0.31
+sum(monthrain$QL)</code></pre>
+<pre><code>## [1] 17734293</code></pre>
+<p>Now we add in the monthly measurements of Phosphorus concentrations
+to calculate P loading for subsurface.</p>
+<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
+# subset out event sampling 
+Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
+# merge the datasets
+total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# To start lets look at just 2023
+total23&lt;- subset(total, Year == &quot;2023&quot;)
+total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)</code></pre>
+<pre><code>##    Month Year     Pinlb    Poutlb  Premoved        QL inflowTP outflowTP
+## 1    Apr 2023 0.7302519 0.1217087 0.6085433 1104121.4   0.3000     0.050
+## 3    Aug 2023        NA        NA        NA 1303914.8       NA        NA
+## 4    Dec 2023        NA        NA        NA  862266.2       NA        NA
+## 5    Feb 2023 1.4731151 0.6606114 0.8125038 2187211.9   0.3055     0.137
+## 6    Jan 2023 0.8408329 0.5821151 0.2587178 1466904.2   0.2600     0.180
+## 8    Jul 2023 3.6983202       NaN       NaN 2786592.1   0.6020       NaN
+## 10   Jun 2023       NaN       NaN       NaN  720307.8      NaN       NaN
+## 12   Mar 2023 1.0004451 0.2858415 0.7146036 2160923.3   0.2100     0.060
+## 13   May 2023 2.2644764 0.7076489 1.5568275 2139892.4   0.4800     0.150
+## 15   Nov 2023       NaN       NaN       NaN  341751.9      NaN       NaN
+## 18   Oct 2023        NA        NA        NA 1803398.3       NA        NA
+## 20   Sep 2023       NaN       NaN       NaN  857008.5      NaN       NaN</code></pre>
+<pre class="r"><code>library(dplyr)
+# first make all NaNs into NAs
+total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)
+
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)</code></pre>
+<pre><code>## [1] 0.6188732</code></pre>
+<pre class="r"><code># replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 7.078841</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 12.75275</code></pre>
+<div id="assumptions-in-this-budget-3" class="section level3">
+<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
+<ol style="list-style-type: decimal">
+<li>Drainage area is accurate (maybe?)<br></li>
+<li>Curve number is a good choice for this site <br></li>
+<li>Groundwater dynamics are captured <br></li>
+<li>Estimates of subsurface drainage are accurate <br></li>
+<li>Nearby rainfall data is accurate for the site <br></li>
+<li>Storm events do not change phosphorus retention dynamics</li>
+</ol>
 </div>
 </div>
 <div id="hybrid-modelling-budget" class="section level2">
 <h2>Hybrid Modelling Budget</h2>
+<p>This is not related to the series of hypotheses, but an attempt to
+look at how using real % retention in the ODNR budget improves it in
+comparison to estimating rainfall data for the site.</p>
 <p>Calculate phosphorus loading as above:</p>
 <pre class="r"><code># units = lbs / year
 print(loadFORB)</code></pre>
@@ -533,194 +1284,6 @@ print(low)</code></pre>
 <pre><code>## [1] 35.09247</code></pre>
 <p>By this budgetting we can estimate that Forder Bridge retains between
 24 and 35 lbs P / year</p>
-<div id="rainfall-at-ft.-wayne-budget" class="section level3">
-<h3>Rainfall at Ft. Wayne Budget</h3>
-<p>We’ll use data from Ft. Wayne Indiana (31 miles away) downloaded from
-Weather Underground.<br></p>
-<p>We’ll calculating runoff using the curve number of the soils: We will
-calculate the runoff that flows through the wetland during rain events
-based on some information about soil properties.</p>
-<p><span class="math display">\[Q=\begin{cases}
-0 \text{ for } P \le I_a\\
-{(P-I_a)^2 \over P-I_a+S} \text{ for } P &gt; I_a
-\end{cases}\]</span></p>
-<p>where: <br> Q = runoff (inches)<br> P = rainfall (inches)<br> S =
-potential maximum soil moisture retention after runoff begins
-(inches)<br> I_a = initial abstraction (inches; this is the amount of
-rainfall needed for runoff to occur)<br></p>
-<p>The runoff curve (CN) is used to calculate S <span class="math display">\[S = {1000 \over CN} -10\]</span> We will assume
-that: <span class="math display">\[ I_a = 0.2S\]</span> as a standard
-correction. (See here <a href="https://onlinelibrary.wiley.com/doi/10.1111/j.1752-1688.2006.tb04481.x" class="uri">https://onlinelibrary.wiley.com/doi/10.1111/j.1752-1688.2006.tb04481.x</a>
-for discussion of whether that is a good correction but we’re going to
-power through with it)</p>
-<p>CN will depend on the soil of the site. In this case it’s probably
-around 80, fairly poorly drained, but we may want to come back and think
-abit more about what our curve number should be. <br></p>
-<p>The drainage area we are using here accounts mainly for the drainage
-entering through the culvert which we expect the majority of to run
-through the wetland and out the stream into the Maumee river. The
-majority of this area is the field to the southeast of the FORB land
-parcel.</p>
-<pre class="r"><code># Drainage Area calculated by DEM
-tDA = 68.55
-# convert tDA to m^2
-tDAm2=tDA*4046.86
-# units = m^2
-print(tDAm2)</code></pre>
-<pre><code>## [1] 277412.3</code></pre>
-<p>Then we import data on precipitation from weather underground at the
-Ft. Wayne weather station (31 miles away)</p>
-<pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
-raindata&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
-# make it recognize that it&#39;s a date-time value
-raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
-# Rename so our old code keeps working 
-dayrain=raindata</code></pre>
-<p>Then we calculate runoff as above.</p>
-<pre class="r"><code># Start out by calculating S (inches)
-CN=85
-S = (1000/CN)-10
-# Calculate I (inches)
-Ia = 0.2*S
-# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
-dayrain$precip = dayrain$precipaccum_in
-# caculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=tDAm2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-library(lubridate)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;lubridate&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     date, intersect, setdiff, union</code></pre>
-<pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
-## ✔ forcats 1.0.0     ✔ stringr 1.5.0
-## ✔ purrr   1.0.2     ✔ tibble  3.2.1
-## ✔ readr   2.1.4     ✔ tidyr   1.3.0</code></pre>
-<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-## ✖ dplyr::filter() masks stats::filter()
-## ✖ dplyr::lag()    masks stats::lag()
-## ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
-<pre class="r"><code>dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<p>Now we add in the monthly measurements of Phosphorus concentrations
-to calculate P loading.</p>
-<pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
-setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
-Pdata&lt;-read.csv(&quot;FORB P Budget Full inletsandoutlets.csv&quot;)
-# subset out event sampling 
-Pdata&lt;- subset(Pdata, Sampling == &quot;baseflow&quot;)
-# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
-Pdata$outflowTP &lt;- rowMeans(Pdata[c(&#39;Outlet_stream1_FORB_17_END&#39;, &#39;Outlet_stream2_FORB_18&#39;)], na.rm=TRUE)
-# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
-Pdata$inflowTP &lt;- rowMeans(Pdata[c(&#39;Inlet_wetland_FORB_9&#39;, &#39;Inlet_tile_FORB_15&#39;)], na.rm=TRUE)
-# merge the datasets
-total &lt;- merge(Pdata,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# Measure the mass of P entering the wetland (units = mg P/month)
-total$Pin=total$inflowTP*total$QL
-# calculate the total mass of P exiting the wetland (units = mg P/month)
-total$Pout=total$outflowTP*total$QL
-# Convert to lbs P/month
-total$Pinlb=total$Pin/453592
-total$Poutlb=total$Pout/453592
-# calculate the amount of P removed
-total$Premoved=total$Pinlb-total$Poutlb</code></pre>
-<p>Now we need to look at where we have data and attempt to extrapolate
-where we do not</p>
-<pre class="r"><code># To start lets look at just 2023
-total23&lt;- subset(total, Year == &quot;2023&quot;)
-total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
-print(total23)</code></pre>
-<pre><code>##    Month Year     Pinlb     Poutlb   Premoved         QL inflowTP outflowTP
-## 1    Apr 2023 0.3722980 0.06204967 0.31024836  562904.69   0.3000     0.050
-## 3    Aug 2023        NA         NA         NA 2229993.17       NA        NA
-## 4    Dec 2023        NA         NA         NA   43147.24       NA        NA
-## 5    Feb 2023 3.7854257 1.69755587 2.08786982 5620421.64   0.3055     0.137
-## 6    Jan 2023 0.2952749 0.20442108 0.09085381  515132.03   0.2600     0.180
-## 8    Jul 2023 8.2230455        NaN        NaN 6195859.88   0.6020       NaN
-## 10   Jun 2023       NaN        NaN        NaN  264909.56      NaN       NaN
-## 12   Mar 2023 2.8090058 0.80257308 2.00643271 6067345.49   0.2100     0.060
-## 13   May 2023 7.1193274 2.22478981 4.89453757 6727645.72   0.4800     0.150
-## 15   Nov 2023       NaN        NaN        NaN       0.00      NaN       NaN
-## 18   Oct 2023        NA         NA         NA  706741.98       NA        NA
-## 20   Sep 2023       NaN        NaN        NaN  854097.61      NaN       NaN</code></pre>
-<p>We can assume there is no P retained when there is no discharge:</p>
-<pre class="r"><code>library(dplyr)
-# first make all NaNs into NAs
-total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# now replace NAs where discharge = 0 as also 0
-total23$Premoved=ifelse(test = total23$QL == 0, yes = &quot;0&quot;, no = total23$Premoved)</code></pre>
-<p>We have one event with loading data but no retention data. Here we
-can estimate retention based on the average retention of the other
-months.</p>
-<pre class="r"><code># tell r that Premoved is numeric: 
-total23$Premoved=as.numeric(total23$Premoved)
-# Calculate percent removal
-total23$percentP=total23$Premoved/total23$Pinlb
-percentRemoval = mean (total23$percentP,na.rm=T)
-print(percentRemoval)</code></pre>
-<pre><code>## [1] 0.6188732</code></pre>
-<p>There’s a pretty good amount of variation here, but lets power
-through and use the average.</p>
-<pre class="r"><code># replace the month in question (July 2023)
-total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Year == &quot;2023&quot;, yes = total23$Pinlb*percentRemoval, no = total23$Premoved)</code></pre>
-<p>Now we can sum up the total P removed by the wetland over the course
-of the year:</p>
-<pre class="r"><code>Removal = sum (total23$Premoved,na.rm=T)
-# This is the removal of P by pool by over the course of the 8 months that we have data for
-print(Removal)</code></pre>
-<pre><code>## [1] 14.47897</code></pre>
-<p>We can estimate the other 4 months by estimating a low and a high
-value for P loading and P retention. <br> We have discharge data for all
-months, so we don’t want to just estimate loading, when we can estimate
-concentration instead:</p>
-<pre class="r"><code># our low estimate is the lowest concentration we saw: 
-lowPcon = min(total23$inflowTP,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon= max(total23$inflowTP,na.rm = TRUE)
-
-# then we can estimate the low end of % retention
-lowPper = min(total23$percentP,na.rm = TRUE)
-# and then the high end of % retention
-highPper = max(total23$percentP,na.rm = TRUE)
-
-
-# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
-
-# first for the low estimate
-total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
-# then for the high estimate
-total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
-
-# Now we can sum up our full months: 
-lowRemoval = sum (total23$Premovedlow,na.rm=T)
-highRemoval = sum (total23$Premovedhigh,na.rm=T)
-print(lowRemoval)</code></pre>
-<pre><code>## [1] 15.06286</code></pre>
-<pre class="r"><code>print(highRemoval)</code></pre>
-<pre><code>## [1] 19.01228</code></pre>
-</div>
-<div id="assumptions-in-this-budget" class="section level3">
-<h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
-<ol style="list-style-type: decimal">
-<li>Drainage area is accurate (it’s not)<br></li>
-<li>Curve number is a good choice for this site <br></li>
-<li>Groundwater dynamics are captured <br></li>
-<li>Tile drains are accounted for (they’re not) <br></li>
-<li>Nearby rainfall data is accurate for the site <br></li>
-</ol>
-</div>
 </div>
 <div id="lets-try-to-account-for-the-isolated-pools" class="section level2">
 <h2>Lets try to account for the isolated pools:</h2>
@@ -898,7 +1461,7 @@ IsoPlow</code></pre>
 <pre><code>## [1] 0.6699602</code></pre>
 <pre class="r"><code>IsoPhigh</code></pre>
 <pre><code>## [1] 2.276963</code></pre>
-<div id="assumptions-in-this-budget-1" class="section level3">
+<div id="assumptions-in-this-budget-4" class="section level3">
 <h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
 <ol style="list-style-type: decimal">
 <li>Volume estimates are accurate (they’re not; measurements at staff
@@ -913,13 +1476,16 @@ dynamics at these sites.</li>
 <h2>Lets try a different method to account for these pools for
 comparison!</h2>
 <p>In this new method our goal is to estimate the amount of water
-flowing into each pool and then use concentrations in the pool to
-estimate the amount of P entering the pool that corresponds to each pool
-during the month that we estimate discharge into the pool. We think this
-estimate is much more dicey than the previous one but wanted to compare
-and look for ways that it could be useful because if we could improve
-this method it would solve the issue with the last one that we are
-relying on monthly data to capture phosphorus dynamics.</p>
+flowing into each wetland complex and then use average concentrations in
+the complex to estimate the amount of P entering the complex during the
+month that we estimate discharge into the pool. We think this estimate
+is much more dicey than the previous one but wanted to compare and look
+for ways that it could be useful because if we could improve this method
+it would solve the issue with the last one that we are relying on
+monthly data to capture phosphorus dynamics. <br></p>
+<p>We are using the full complexes as opposed to individual pools
+because there was a lot of overlap in terms of drainage area between the
+different pools</p>
 <pre class="r"><code># load in the rainfall data
 setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
 dayrain&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
@@ -927,21 +1493,13 @@ dayrain&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
 dayrain = mutate(dayrain, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))</code></pre>
 <p>First we need to input the drainage area for each pool as measured by
 Bishwodeep with DEMs</p>
-<pre class="r"><code>DAp1 = 10.00 # this is a placeholder number
-DAp2 = 10.00 # this is a placeholder number
-DAp3 = 10.00 # this is a placeholder number
-DAp5 = 10.00 # this is a placeholder number
-DAp6 = 10.00 # this is a placeholder number
-DAp7 = 10.00 # this is a placeholder number
-DAp8 = 10.00 # this is a placeholder number
+<pre class="r"><code>DAc1 = 10.00 # this is a placeholder number
+DAc3 = 10.00 # this is a placeholder number
+DAc2 = 10.00 # this is a placeholder number
 # convert tDA to m^2
-DAp1m2=DAp1*4046.86
-DAp2m2=DAp1*4046.86
-DAp3m2=DAp1*4046.86
-DAp5m2=DAp1*4046.86
-DAp6m2=DAp1*4046.86
-DAp7m2=DAp1*4046.86
-DAp8m2=DAp1*4046.86</code></pre>
+DAc1m2=DAc1*4046.86
+DAc3m2=DAc3*4046.86
+DAc2m2=DAc2*4046.86</code></pre>
 <p>We’ll do the same thing as before and use pool 1 as an example before
 replicating for the whole batch. Basically the method for calculating
 runoff is the same as the budget using rainfall to estimate the main
@@ -956,7 +1514,7 @@ dayrain$precip = dayrain$precipaccum_in
 # calculate runoff (inches) for each day in the dataset
 dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
 # scale up to the entire drainage area
-dayrain$Q=DAp1m2*dayrain$Q
+dayrain$Q=DAc1m2*dayrain$Q
 # convert back to meters 
 dayrain$Qm = dayrain$Q * 0.0254
 # convert discharge to liters
@@ -991,318 +1549,86 @@ Pdata$tp_mgL=na_if(Pdata$tp_mgL, -999)
 # make the date value usable
 Pdata = mutate(Pdata, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;))
 Pdata$Date=as.POSIXct(Pdata$datetime,format=&quot;%Y-%m-%d&quot;)
-# subset out site 1 
-site1&lt;- subset(Pdata, location == &quot;FORB_01&quot;)
-# Summarize the dataset by month and year
+# subset out complex 1 
+site1&lt;- subset(Pdata, location == &quot;FORB_01&quot; |location == &quot;FORB_02&quot; | location == &quot;FORB_03&quot; )
+# Summarize the dataset by month and year (this takes the average of all values collected for each month between the different pools)
 monthsite1=site1 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
   group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
 ## `.groups` argument.</code></pre>
 <pre class="r"><code># merge the datasets
-totalp1 &lt;- merge(monthsite1,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+totalc1 &lt;- merge(monthsite1,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
 # convert NaNs to NAs
-totalp1 &lt;- totalp1 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+totalc1 &lt;- totalc1 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
 # calculate the amount of P entering the pool for each month! (units are mg) 
-totalp1$massP &lt;- totalp1$tp_mgL*totalp1$QL
+totalc1$massP &lt;- totalc1$tp_mgL*totalc1$QL
 
 ## make high and low estimates for months with discharge but no concentration data
 # our low estimate is the lowest concentration we saw: 
-lowPcon1 = min(totalp1$tp_mgL,na.rm = TRUE)
+lowPcon1 = min(totalc1$tp_mgL,na.rm = TRUE)
 # our high estimate is the highest concentration we saw: 
-highPcon1= max(totalp1$tp_mgL,na.rm = TRUE)
+highPcon1= max(totalc1$tp_mgL,na.rm = TRUE)
 # first for the low estimate
-totalp1$Pmasslow1=ifelse(test = is.na(totalp1$massP) , yes = totalp1$QL*lowPcon1, no = totalp1$massP)
+totalc1$Pmasslow1=ifelse(test = is.na(totalc1$massP) , yes = totalc1$QL*lowPcon1, no = totalc1$massP)
 # then for the high estimate
-totalp1$Pmasshigh1=ifelse(test = is.na(totalp1$massP) , yes = totalp1$QL*highPcon1, no = totalp1$massP)
+totalc1$Pmasshigh1=ifelse(test = is.na(totalc1$massP) , yes = totalc1$QL*highPcon1, no = totalc1$massP)
 
 # sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp1$Pmasslow1,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 0.9834793</code></pre>
-<pre class="r"><code>sum(totalp1$Pmasshigh1,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 11.19153</code></pre>
+sum(totalc1$Pmasslow1,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 1.1431</code></pre>
+<pre class="r"><code>sum(totalc1$Pmasshigh1,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 7.890139</code></pre>
 <p>Notes to self for refining this method: add in multiple years precip
 data, take average of multiple years for estimating pool retention</p>
-<p>Now we need to do all of this for the rest of the pools!</p>
-<pre class="r"><code>#### Pool 2 ####
-# recalculate runoff (inches) for each day in the dataset
+<p>Now we need to do all of this for wetland complex 3! Wetland complex
+2 is always dry so we’re not really sure what we could use as P
+concentrations for that one.</p>
+<pre class="r"><code># calculate runoff (inches) again for each day in the dataset
 dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
 # scale up to the entire drainage area
-dayrain$Q=DAp2m2*dayrain$Q
+dayrain$Q=DAc2m2*dayrain$Q
 # convert back to meters 
 dayrain$Qm = dayrain$Q * 0.0254
 # convert discharge to liters
 dayrain$QL = dayrain$Qm * 1000
 # Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
 dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
 # Summarize the dataset by month and year
 monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
   group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
 ## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 2 
-site2&lt;- subset(Pdata, location == &quot;FORB_02&quot;)
-# Summarize the dataset by month and year
+<pre class="r"><code># subset out complex 2
+site2&lt;- subset(Pdata, location == &quot;FORB_05&quot; |location == &quot;FORB_06&quot; | location == &quot;FORB_07&quot;|location == &quot;FORB_08&quot; )
+# Summarize the dataset by month and year (this takes the average of all values collected for each month between the different pools)
 monthsite2=site2 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
   group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
 ## `.groups` argument.</code></pre>
 <pre class="r"><code># merge the datasets
-totalp2 &lt;- merge(monthsite2,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
+totalc2 &lt;- merge(monthsite2,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
 # convert NaNs to NAs
-totalp2 &lt;- totalp2 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+totalc2 &lt;- totalc2 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
 # calculate the amount of P entering the pool for each month! (units are mg) 
-totalp2$massP &lt;- totalp2$tp_mgL*totalp2$QL
+totalc2$massP &lt;- totalc2$tp_mgL*totalc2$QL
 
 ## make high and low estimates for months with discharge but no concentration data
 # our low estimate is the lowest concentration we saw: 
-lowPcon2= min(totalp2$tp_mgL,na.rm = TRUE)
+lowPcon2 = min(totalc2$tp_mgL,na.rm = TRUE)
 # our high estimate is the highest concentration we saw: 
-highPcon2= max(totalp2$tp_mgL,na.rm = TRUE)
+highPcon2= max(totalc2$tp_mgL,na.rm = TRUE)
 # first for the low estimate
-totalp2$Pmasslow2=ifelse(test = is.na(totalp2$massP) , yes = totalp2$QL*lowPcon2, no = totalp2$massP)
+totalc2$Pmasslow2=ifelse(test = is.na(totalc2$massP) , yes = totalc2$QL*lowPcon2, no = totalc2$massP)
 # then for the high estimate
-totalp2$Pmasshigh2=ifelse(test = is.na(totalp2$massP) , yes = totalp2$QL*highPcon2, no = totalp2$massP)
+totalc2$Pmasshigh2=ifelse(test = is.na(totalc2$massP) , yes = totalc2$QL*highPcon2, no = totalc2$massP)
 
 # sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp2$Pmasslow2,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 0.3964581</code></pre>
-<pre class="r"><code>sum(totalp2$Pmasshigh2,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 2.464741</code></pre>
-<pre class="r"><code>#######################################
-
-#### Pool 3 ####
-# recalculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=DAp3m2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 3 
-site3&lt;- subset(Pdata, location == &quot;FORB_03&quot;)
-# Summarize the dataset by month and year
-monthsite3=site3 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># merge the datasets
-totalp3 &lt;- merge(monthsite3,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# convert NaNs to NAs
-totalp3 &lt;- totalp3 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# calculate the amount of P entering the pool for each month! (units are mg) 
-totalp3$massP &lt;- totalp3$tp_mgL*totalp3$QL
-
-## make high and low estimates for months with discharge but no concentration data
-# our low estimate is the lowest concentration we saw: 
-lowPcon3= min(totalp3$tp_mgL,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon3= max(totalp3$tp_mgL,na.rm = TRUE)
-# first for the low estimate
-totalp3$Pmasslow3=ifelse(test = is.na(totalp3$massP) , yes = totalp3$QL*lowPcon3, no = totalp3$massP)
-# then for the high estimate
-totalp3$Pmasshigh3=ifelse(test = is.na(totalp3$massP) , yes = totalp3$QL*highPcon3, no = totalp3$massP)
-
-# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp3$Pmasslow3,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 1.43788</code></pre>
-<pre class="r"><code>sum(totalp3$Pmasshigh3,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 5.110878</code></pre>
-<pre class="r"><code>#### Pool 5 ####
-# recalculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=DAp5m2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 5 
-site5&lt;- subset(Pdata, location == &quot;FORB_05&quot;)
-# Summarize the dataset by month and year
-monthsite5=site5 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># merge the datasets
-totalp5 &lt;- merge(monthsite5,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# convert NaNs to NAs
-totalp5 &lt;- totalp5 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# calculate the amount of P entering the pool for each month! (units are mg) 
-totalp5$massP &lt;- totalp5$tp_mgL*totalp5$QL
-
-## make high and low estimates for months with discharge but no concentration data
-# our low estimate is the lowest concentration we saw: 
-lowPcon5= min(totalp5$tp_mgL,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon5= max(totalp5$tp_mgL,na.rm = TRUE)
-# first for the low estimate
-totalp5$Pmasslow5=ifelse(test = is.na(totalp5$massP) , yes = totalp5$QL*lowPcon5, no = totalp5$massP)
-# then for the high estimate
-totalp5$Pmasshigh5=ifelse(test = is.na(totalp5$massP) , yes = totalp5$QL*highPcon5, no = totalp5$massP)
-
-# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp5$Pmasslow5,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 1.510178</code></pre>
-<pre class="r"><code>sum(totalp5$Pmasshigh5,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 4.799036</code></pre>
-<pre class="r"><code>#######################################
-
-#### Pool 6 ####
-# recalculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=DAp6m2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 6 
-site6&lt;- subset(Pdata, location == &quot;FORB_06&quot;)
-# Summarize the dataset by month and year
-monthsite6=site6 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># merge the datasets
-totalp6 &lt;- merge(monthsite6,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# convert NaNs to NAs
-totalp6 &lt;- totalp6 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# calculate the amount of P entering the pool for each month! (units are mg) 
-totalp6$massP &lt;- totalp6$tp_mgL*totalp6$QL
-
-## make high and low estimates for months with discharge but no concentration data
-# our low estimate is the lowest concentration we saw: 
-lowPcon6= min(totalp6$tp_mgL,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon6= max(totalp6$tp_mgL,na.rm = TRUE)
-# first for the low estimate
-totalp6$Pmasslow6=ifelse(test = is.na(totalp6$massP) , yes = totalp6$QL*lowPcon6, no = totalp6$massP)
-# then for the high estimate
-totalp6$Pmasshigh6=ifelse(test = is.na(totalp6$massP) , yes = totalp6$QL*highPcon6, no = totalp6$massP)
-
-# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp6$Pmasslow6,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 2.8979</code></pre>
-<pre class="r"><code>sum(totalp6$Pmasshigh6,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 8.228487</code></pre>
-<pre class="r"><code>#######################################
-
-
-#### Pool 7 ####
-# recalculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=DAp7m2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 7 
-site7&lt;- subset(Pdata, location == &quot;FORB_07&quot;)
-# Summarize the dataset by month and year
-monthsite7=site7 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># merge the datasets
-totalp7 &lt;- merge(monthsite7,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# convert NaNs to NAs
-totalp7 &lt;- totalp7 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# calculate the amount of P entering the pool for each month! (units are mg) 
-totalp7$massP &lt;- totalp7$tp_mgL*totalp7$QL
-
-## make high and low estimates for months with discharge but no concentration data
-# our low estimate is the lowest concentration we saw: 
-lowPcon7= min(totalp7$tp_mgL,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon7= max(totalp7$tp_mgL,na.rm = TRUE)
-# first for the low estimate
-totalp7$Pmasslow7=ifelse(test = is.na(totalp7$massP) , yes = totalp7$QL*lowPcon7, no = totalp7$massP)
-# then for the high estimate
-totalp7$Pmasshigh7=ifelse(test = is.na(totalp7$massP) , yes = totalp7$QL*highPcon7, no = totalp7$massP)
-
-# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp7$Pmasslow7,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 4.358478</code></pre>
-<pre class="r"><code>sum(totalp7$Pmasshigh7,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 15.93647</code></pre>
-<pre class="r"><code>#######################################
-
-#### Pool 8 ####
-# recalculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=DAp8m2*dayrain$Q
-# convert back to meters 
-dayrain$Qm = dayrain$Q * 0.0254
-# convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
-# Sum up data to get monthly values
-dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
-# Summarize the dataset by month and year
-monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># subset out site 8 
-site8&lt;- subset(Pdata, location == &quot;FORB_08&quot;)
-# Summarize the dataset by month and year
-monthsite8=site8 %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(tp_mgL=mean(tp_mgL,na.rm=T))</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
-## `.groups` argument.</code></pre>
-<pre class="r"><code># merge the datasets
-totalp8 &lt;- merge(monthsite8,monthrain,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
-# convert NaNs to NAs
-totalp8 &lt;- totalp8 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
-# calculate the amount of P entering the pool for each month! (units are mg) 
-totalp8$massP &lt;- totalp8$tp_mgL*totalp8$QL
-
-## make high and low estimates for months with discharge but no concentration data
-# our low estimate is the lowest concentration we saw: 
-lowPcon8= min(totalp8$tp_mgL,na.rm = TRUE)
-# our high estimate is the highest concentration we saw: 
-highPcon8= max(totalp8$tp_mgL,na.rm = TRUE)
-# first for the low estimate
-totalp8$Pmasslow8=ifelse(test = is.na(totalp8$massP) , yes = totalp8$QL*lowPcon8, no = totalp8$massP)
-# then for the high estimate
-totalp8$Pmasshigh8=ifelse(test = is.na(totalp8$massP) , yes = totalp8$QL*highPcon8, no = totalp8$massP)
-
-# sum up the mass of P for the total retained by the pool (currently just 2023 because of the data included)
-sum(totalp8$Pmasslow8,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 1.466468</code></pre>
-<pre class="r"><code>sum(totalp8$Pmasshigh8,na.rm=T)*2.20462e-6</code></pre>
-<pre><code>## [1] 7.988</code></pre>
-<pre class="r"><code>#######################################</code></pre>
+sum(totalc2$Pmasslow2,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 3.81576</code></pre>
+<pre class="r"><code>sum(totalc2$Pmasshigh2,na.rm=T)*2.20462e-6</code></pre>
+<pre><code>## [1] 10.22504</code></pre>
 </div>
 
 

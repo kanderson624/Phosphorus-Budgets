@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("dplyr")
 ```
 
-## ODNR Budgets: 
+## H0: ODNR Budgets: 
 
 ODNR makes budgets for P reduction in potential wetlands using the following method: 
 
@@ -77,109 +77,14 @@ print(high)
 ### ***ASSUMPTIONS IN ODNR BUDGETS:*** 
   Not that many, but boy are they big assumptions<br>
   1. Drainage area is accurate (it's not)<br>
-  2. SPARROW gives an accurate measurement of P loading<br>
-  3. Literature estimates of loading are accurate <br>
+  2. SPARROW gives an accurate measurement of P loading for wetlands <br>
+  3. Literature estimates of retention are accurate <br>
   * Honestly this probably isn't the worst assumption if only because their estimates are so wide ranging.<br>
   4. Seasonal variation does not matter to whoever is looking for this budget. <br>
   5. Annual variation does not play a major role in phosphorus loading, or retention, or hydrologic dynamics.<br>
 
-## Hybrid Modelling Budget 
 
-Calculate phosphorus loading as above:
-
-```{r}
-# units = lbs / year
-print(loadFORB)
-```
-
-Now we'll calculate the P retention at a couple locations across the wetland. <br>
-
-We'll start with Wetland Complex 4:
-```{r}
-# Add in the P dataset (units here are mg/L for TP)
-setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
-Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
-# subset out event sampling 
-Pdata<- subset(Pdata, Sampling == "baseflow")
-# Calculate percent retention in Wetland Complex 4
-Pdata$retainedPcomp4=Pdata$Inlet_wetland_FORB_9-Pdata$Outlet_wetland_FORB_12
-Pdata$percentPcomp4 = Pdata$retainedPcomp4 / Pdata$Inlet_wetland_FORB_9 * 100
-percentRemoval = mean (Pdata$percentPcomp4,na.rm=T)
-print(percentRemoval)
-```
-We get an average percent removal of 8.7% but see here how variable that is: 
-
-```{r}
-# make it realize it's a date time value
-Pdata$Date <- as.Date(Pdata$Date, format="%m/%d/%Y")
-# make the plot
-library(ggplot2)
-p1<-ggplot(data=Pdata, aes(x=Date, y=percentPcomp4)) +
-  geom_bar(stat="identity")+scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y")+theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-print(p1)
-```
-
-Now let's try out the whole flowpath, starting at the tile draining into Wetland Complex 4 and ending in the two streams that deposit into the Maumee:
-```{r}
-# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
-Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
-# inflow remains largely the same for the main flowpath because the inlet tile is not sampled often
-Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
-
-# Calculate percent retention in whole wetland
-Pdata$retainedP=Pdata$inflowTP-Pdata$outflowTP
-Pdata$percentP = Pdata$retainedP / Pdata$inflowTP * 100
-percentRemoval = mean (Pdata$percentP,na.rm=T)
-print(percentRemoval)
-```
-We want to still look at the variability of this measurement: 
-```{r}
-# make it realize it's a date time value
-Pdata$Date <- as.Date(Pdata$Date, format="%m/%d/%Y")
-# make the plot
-library(ggplot2)
-p2<-ggplot(data=Pdata, aes(x=Date, y=percentP)) +
-  geom_bar(stat="identity")+scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y")+theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-print(p2)
-```
-
-We see that the full wetland much more consistently retains P than just wetland complex 4. <br>
-
-P retention at the wetland ranges from 19 to 83 % retention, but that doesn't account for seasonal differences so lets try to take annual averages: 
-
-```{r}
-# 2021
-Pdata2021<- subset(Pdata, Year == "2021")
-percentRemoval2021 = mean (Pdata2021$percentP,na.rm=T)
-print(percentRemoval2021)
-# 2022
-Pdata2022<- subset(Pdata, Year == "2022")
-percentRemoval2022 = mean (Pdata2022$percentP,na.rm=T)
-print(percentRemoval2022)
-# 2023
-Pdata2023<- subset(Pdata, Year == "2023")
-percentRemoval2023 = mean (Pdata2023$percentP,na.rm=T)
-print(percentRemoval2023)
-```
-This gives us a range from 42% retention to 62% retention (but our data is not evenly distributed across different years) <br>
-
-We can now apply these measurements of P retention to the estimated phosphorus loading from SPARROW modelling. 
-
-```{r}
-# units = lbs / year
-print(loadFORB)
-
-# P Removal Rates:
-low = loadFORB*0.42
-high = loadFORB*0.62
-
-# units = lbs/year
-print(low)
-print(high)
-```
-By this budgetting we can estimate that Forder Bridge retains between 24 and 35 lbs P / year
-
-### Rainfall at Ft. Wayne Budget
+## H1: Rainfall at Ft. Wayne Budget, Drainage area from high resolution DEM
 We'll use data from Ft. Wayne Indiana (31 miles away) downloaded from Weather Underground.<br>
 
 We'll calculating runoff using the curve number of the soils: 
@@ -209,9 +114,10 @@ CN will depend on the soil of the site. In this case it's probably around 80, fa
 
 The drainage area we are using here accounts mainly for the drainage entering through the culvert which we expect the majority of to run through the wetland and out the stream into the Maumee river. The majority of this area is the field to the southeast of the FORB land parcel. 
 
+
 ```{r}
-# Drainage Area calculated by DEM
-tDA = 68.55
+# Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
+tDA = 164.41
 # convert tDA to m^2
 tDAm2=tDA*4046.86
 # units = m^2
@@ -237,14 +143,20 @@ S = (1000/CN)-10
 Ia = 0.2*S
 # don't need to convert rain to inches/day, but lets name it so our old code still works
 dayrain$precip = dayrain$precipaccum_in
-# caculate runoff (inches) for each day in the dataset
+# calculate runoff (inches) for each day in the dataset
 dayrain$Q = ifelse(dayrain$precip<=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
 # scale up to the entire drainage area
 dayrain$Q=tDAm2*dayrain$Q
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
 # convert back to meters 
 dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
 # convert discharge to liters
 dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)
+sum(dayrain$QL)
 # Sum up data to get monthly values
 library(lubridate)
 library(tidyverse)
@@ -345,11 +257,619 @@ print(highRemoval)
 
  
 ### ***ASSUMPTIONS IN THIS BUDGET:*** 
-  1. Drainage area is accurate (it's not)<br>
+  1. Drainage area is accurate (it accounts for only topographic drainage area) <br>
+  2. Curve number is a good choice for this site on average (we chose a higher number to better account for sub-surface drainage) <br>
+  3. Groundwater dynamics are captured <br>
+  4. Tile drains are accounted for (they're not) <br>
+  5. Nearby rainfall data is accurate for the site <br>
+  6. Storm events do not change phosphorus retention dynamics
+
+
+
+## H2: Rainfall from Ft. Wayne, expert estimate of drainage area
+
+
+```{r}
+# Drainage Area is an expert estimate by the District Administrator of the Paulding County Soil and Water Conservation District which accounts for both surface and sub-surface drainage
+tDA = 16.5
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)
+```
+
+Then we import data on precipitation from weather underground at the Ft. Wayne weather station (31 miles away)
+
+```{r}
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+raindata<-read.csv("Ftwaynerainfall.csv")
+# make it recognize that it's a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+# Rename so our old code keeps working 
+dayrain=raindata
+```
+Then we calculate runoff as above.
+```{r}
+# Start out by calculating S (inches)
+CN=85
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don't need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# caculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip<=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2*dayrain$Q
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)
+sum(dayrain$QL)
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the dataset by month and year
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(QL=sum(QL,na.rm=T))
+```
+
+Now we add in the monthly measurements of Phosphorus concentrations to calculate P loading as above.
+```{r}
+# Add in the P dataset (units here are mg/L for TP)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
+# subset out event sampling 
+Pdata<- subset(Pdata, Sampling == "baseflow")
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
+# merge the datasets
+total <- merge(Pdata,monthrain,by=c("Month","Year"),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# Extrapolate where we don't have data
+total23<- subset(total, Year == "2023")
+total23<- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)
+
+library(dplyr)
+# first make all NaNs into NAs
+total23 <- total23 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = "0", no = total23$Premoved)
+# We have one event with loading data but no retention data. Here we can estimate retention based on the average retention of the other months. 
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)
+
+# replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == "Jul" & total23$Year == "2023", yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+Removal = sum (total23$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 8 months that we have data for
+print(Removal)
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)
+print(highRemoval)
+```
+
+### ***ASSUMPTIONS IN THIS BUDGET:*** 
+  1. Drainage area is accurate (it may not account for the full topographic drainage area)<br>
   2. Curve number is a good choice for this site <br>
   3. Groundwater dynamics are captured <br>
   4. Tile drains are accounted for (they're not) <br>
   5. Nearby rainfall data is accurate for the site <br>
+
+## H3: Rainfall from Ft. Wayne, expert estimate of drainage area, estimates of runoff from Pease et al. 2018
+
+
+```{r}
+# Drainage Area delineated by expert opinion
+tDA = 16.5
+# convert tDA to m^2
+tDAm2=tDA*4046.86
+# units = m^2
+print(tDAm2)
+```
+
+Then we import data on precipitation from weather underground at the Ft. Wayne weather station (31 miles away)
+
+```{r}
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+raindata<-read.csv("Ftwaynerainfall.csv")
+# make it recognize that it's a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+# Rename so our old code keeps working 
+dayrain=raindata
+```
+Then we estimate runoff according to Pease et al. 2018 with ~7% of rainfall as surface runoff, and 31% of rainfall as subsurface runoff for a total of 38% of rainfall as runoff
+```{r}
+# don't need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# scale up to the entire drainage area
+dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the dataset by month and year
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(precipL=sum(precipL,na.rm=T))
+
+# We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
+monthrain$QL = monthrain$precipL * 0.38
+sum(monthrain$QL)
+```
+
+Now we add in the monthly measurements of Phosphorus concentrations to calculate P loading.
+```{r}
+# Add in the P dataset (units here are mg/L for TP)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
+# subset out event sampling 
+Pdata<- subset(Pdata, Sampling == "baseflow")
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
+# merge the datasets
+total <- merge(Pdata,monthrain,by=c("Month","Year"),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# Extrapolate where we don't have data
+total23<- subset(total, Year == "2023")
+total23<- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)
+#We can assume there is no P retained when there is no discharge: 
+library(dplyr)
+# first make all NaNs into NAs
+total23 <- total23 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = "0", no = total23$Premoved)
+#We have one event with loading data but no retention data. Here we can estimate retention based on the average retention of the other months. 
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)
+# replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == "Jul" & total23$Year == "2023", yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+Removal = sum (total23$Premoved,na.rm=T)
+# This is the removal of P by pool by over the course of the 8 months that we have data for
+print(Removal)
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)
+print(highRemoval)
+```
+
+ 
+### ***ASSUMPTIONS IN THIS BUDGET:*** 
+  1. Drainage area is accurate (it's focused mostly on sub-surface drainage)<br>
+  2. Curve number is a good choice for this site <br>
+  3. Groundwater dynamics are captured <br>
+  4. Tile drains are accounted for (they're not) <br>
+  5. Nearby rainfall data is accurate for the site <br>
+  6. Storm events do not change phosphorus retention dynamics
+
+
+
+## H4: Rainfall from Ft. Wayne, high res DEM for surface drainage area, expert estimate of subsurface drainage area
+
+
+```{r}
+# Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
+tDAsur = 164.41
+tDAsub = 16.5
+# convert tDA to m^2
+tDAm2sur=tDAsur*4046.86
+tDAm2sub=tDAsub*4046.86
+```
+
+Then we import data on precipitation from weather underground at the Ft. Wayne weather station (31 miles away)
+
+```{r}
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+raindata<-read.csv("Ftwaynerainfall.csv")
+# make it recognize that it's a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+# Rename so our old code keeps working 
+dayrain=raindata
+```
+Then we calculate runoff as above.
+```{r}
+# Start out by calculating S (inches)
+CN=80
+S = (1000/CN)-10
+# Calculate I (inches)
+Ia = 0.2*S
+# don't need to convert rain to inches/day, but lets name it so our old code still works
+dayrain$precip = dayrain$precipaccum_in
+# caculate runoff (inches) for each day in the dataset
+dayrain$Q = ifelse(dayrain$precip<=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
+# scale up to the entire drainage area
+dayrain$Q=tDAm2sur*dayrain$Q
+dayrain$fullprecip=tDAm2sur*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$Qm = dayrain$Q * 0.0254
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$QL = dayrain$Qm * 1000
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)
+sum(dayrain$QL)
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the dataset by month and year
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(QL=sum(QL,na.rm=T))
+```
+
+Now we add in the monthly measurements of Phosphorus concentrations to calculate P loading.
+```{r}
+# Add in the P dataset (units here are mg/L for TP)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
+# subset out event sampling 
+Pdata<- subset(Pdata, Sampling == "baseflow")
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
+# merge the datasets
+total <- merge(Pdata,monthrain,by=c("Month","Year"),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# To start lets look at just 2023
+total23<- subset(total, Year == "2023")
+total23<- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)
+
+#We can assume there is no P retained when there is no discharge: 
+library(dplyr)
+# first make all NaNs into NAs
+total23 <- total23 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = "0", no = total23$Premoved)
+
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)
+
+# replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == "Jul" & total23$Year == "2023", yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)
+print(highRemoval)
+```
+
+Now we repeat for subsurface runoff! 
+
+```{r}
+# Reload our rainfall dataset
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+raindata<-read.csv("Ftwaynerainfall.csv")
+# make it recognize that it's a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y"))
+# Rename so our old code keeps working 
+dayrain=raindata
+# scale up to the entire drainage area
+dayrain$fullprecip=tDAm2sub*dayrain$precipaccum_in
+# convert back to meters 
+dayrain$precipm = dayrain$fullprecip * 0.0254
+# convert discharge to liters
+dayrain$precipL = dayrain$precipm * 1000
+# Sum up annual precipitation and discharge
+sum(dayrain$precipL)
+
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
+# Summarize the rainfall by month and year but just for rainfall data
+monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
+  group_by(Year,Month) %>% summarise(precipL=sum(precipL,na.rm=T))
+
+# We expect that subsurface drainage will be ~ 31% of total runoff (Pease et al. 2018)
+monthrain$QL = monthrain$precipL * 0.31
+sum(monthrain$QL)
+```
+ Now we add in the monthly measurements of Phosphorus concentrations to calculate P loading for subsurface.
+```{r}
+# Add in the P dataset (units here are mg/L for TP)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
+# subset out event sampling 
+Pdata<- subset(Pdata, Sampling == "baseflow")
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
+# Average the inflow between the main inlet tile and the start of complex 4 (the main inlet tile is not sampled as often as the start of complex 4)
+Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
+# merge the datasets
+total <- merge(Pdata,monthrain,by=c("Month","Year"),all=TRUE)
+# Measure the mass of P entering the wetland (units = mg P/month)
+total$Pin=total$inflowTP*total$QL
+# calculate the total mass of P exiting the wetland (units = mg P/month)
+total$Pout=total$outflowTP*total$QL
+# Convert to lbs P/month
+total$Pinlb=total$Pin/453592
+total$Poutlb=total$Pout/453592
+# calculate the amount of P removed
+total$Premoved=total$Pinlb-total$Poutlb
+
+# To start lets look at just 2023
+total23<- subset(total, Year == "2023")
+total23<- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
+print(total23)
+
+library(dplyr)
+# first make all NaNs into NAs
+total23 <- total23 %>% mutate_all(~ifelse(is.nan(.), NA, .))
+# now replace NAs where discharge = 0 as also 0
+total23$Premoved=ifelse(test = total23$QL == 0, yes = "0", no = total23$Premoved)
+
+# tell r that Premoved is numeric: 
+total23$Premoved=as.numeric(total23$Premoved)
+# Calculate percent removal
+total23$percentP=total23$Premoved/total23$Pinlb
+percentRemoval = mean (total23$percentP,na.rm=T)
+print(percentRemoval)
+
+# replace the month in question (July 2023)
+total23$Premoved=ifelse(test = total23$Month == "Jul" & total23$Year == "2023", yes = total23$Pinlb*percentRemoval, no = total23$Premoved)
+
+# our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23$Premovedlow=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*lowPcon/453592*lowPper, no = total23$Premoved)
+# then for the high estimate
+total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*highPcon/453592*highPper, no = total23$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23$Premovedlow,na.rm=T)
+highRemoval = sum (total23$Premovedhigh,na.rm=T)
+print(lowRemoval)
+print(highRemoval)
+```
+
+
+### ***ASSUMPTIONS IN THIS BUDGET:*** 
+  1. Drainage area is accurate (maybe?)<br>
+  2. Curve number is a good choice for this site <br>
+  3. Groundwater dynamics are captured <br>
+  4. Estimates of subsurface drainage are accurate <br>
+  5. Nearby rainfall data is accurate for the site <br>
+  6. Storm events do not change phosphorus retention dynamics
+
+
+
+
+
+
+
+
+
+
+## Hybrid Modelling Budget 
+
+This is not related to the series of hypotheses, but an attempt to look at how using real % retention in the ODNR budget improves it in comparison to estimating rainfall data for the site. 
+
+Calculate phosphorus loading as above:
+
+```{r}
+# units = lbs / year
+print(loadFORB)
+```
+
+Now we'll calculate the P retention at a couple locations across the wetland. <br>
+
+We'll start with Wetland Complex 4:
+```{r}
+# Add in the P dataset (units here are mg/L for TP)
+setwd("C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data")
+Pdata<-read.csv("FORB P Budget Full inletsandoutlets.csv")
+# subset out event sampling 
+Pdata<- subset(Pdata, Sampling == "baseflow")
+# Calculate percent retention in Wetland Complex 4
+Pdata$retainedPcomp4=Pdata$Inlet_wetland_FORB_9-Pdata$Outlet_wetland_FORB_12
+Pdata$percentPcomp4 = Pdata$retainedPcomp4 / Pdata$Inlet_wetland_FORB_9 * 100
+percentRemoval = mean (Pdata$percentPcomp4,na.rm=T)
+print(percentRemoval)
+```
+We get an average percent removal of 8.7% but see here how variable that is: 
+
+```{r}
+# make it realize it's a date time value
+Pdata$Date <- as.Date(Pdata$Date, format="%m/%d/%Y")
+# make the plot
+library(ggplot2)
+p1<-ggplot(data=Pdata, aes(x=Date, y=percentPcomp4)) +
+  geom_bar(stat="identity")+scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y")+theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+print(p1)
+```
+
+Now let's try out the whole flowpath, starting at the tile draining into Wetland Complex 4 and ending in the two streams that deposit into the Maumee:
+```{r}
+# take the average outflow between streams 1 and 2 (for samples at the end of the stream)
+Pdata$outflowTP <- rowMeans(Pdata[c('Outlet_stream1_FORB_17_END', 'Outlet_stream2_FORB_18')], na.rm=TRUE)
+# inflow remains largely the same for the main flowpath because the inlet tile is not sampled often
+Pdata$inflowTP <- rowMeans(Pdata[c('Inlet_wetland_FORB_9', 'Inlet_tile_FORB_15')], na.rm=TRUE)
+
+# Calculate percent retention in whole wetland
+Pdata$retainedP=Pdata$inflowTP-Pdata$outflowTP
+Pdata$percentP = Pdata$retainedP / Pdata$inflowTP * 100
+percentRemoval = mean (Pdata$percentP,na.rm=T)
+print(percentRemoval)
+```
+We want to still look at the variability of this measurement: 
+```{r}
+# make it realize it's a date time value
+Pdata$Date <- as.Date(Pdata$Date, format="%m/%d/%Y")
+# make the plot
+library(ggplot2)
+p2<-ggplot(data=Pdata, aes(x=Date, y=percentP)) +
+  geom_bar(stat="identity")+scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y")+theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+print(p2)
+```
+
+We see that the full wetland much more consistently retains P than just wetland complex 4. <br>
+
+P retention at the wetland ranges from 19 to 83 % retention, but that doesn't account for seasonal differences so lets try to take annual averages: 
+
+```{r}
+# 2021
+Pdata2021<- subset(Pdata, Year == "2021")
+percentRemoval2021 = mean (Pdata2021$percentP,na.rm=T)
+print(percentRemoval2021)
+# 2022
+Pdata2022<- subset(Pdata, Year == "2022")
+percentRemoval2022 = mean (Pdata2022$percentP,na.rm=T)
+print(percentRemoval2022)
+# 2023
+Pdata2023<- subset(Pdata, Year == "2023")
+percentRemoval2023 = mean (Pdata2023$percentP,na.rm=T)
+print(percentRemoval2023)
+```
+This gives us a range from 42% retention to 62% retention (but our data is not evenly distributed across different years) <br>
+
+We can now apply these measurements of P retention to the estimated phosphorus loading from SPARROW modelling. 
+
+```{r}
+# units = lbs / year
+print(loadFORB)
+
+# P Removal Rates:
+low = loadFORB*0.42
+high = loadFORB*0.62
+
+# units = lbs/year
+print(low)
+print(high)
+```
+By this budgetting we can estimate that Forder Bridge retains between 24 and 35 lbs P / year
+
+
 
 ## Lets try to account for the isolated pools: 
 
@@ -544,11 +1064,11 @@ First we need to input the drainage area for each pool as measured by Bishwodeep
 ```{r}
 DAc1 = 10.00 # this is a placeholder number
 DAc3 = 10.00 # this is a placeholder number
-
+DAc2 = 10.00 # this is a placeholder number
 # convert tDA to m^2
 DAc1m2=DAc1*4046.86
 DAc3m2=DAc3*4046.86
-
+DAc2m2=DAc2*4046.86
 ```
 We'll do the same thing as before and use pool 1 as an example before replicating for the whole batch. Basically the method for calculating runoff is the same as the budget using rainfall to estimate the main flow path (but with a much smaller drainage area).
 
