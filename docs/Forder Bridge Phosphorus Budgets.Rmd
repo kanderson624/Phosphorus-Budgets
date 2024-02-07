@@ -405,11 +405,12 @@ print(highRemoval)
 
 ```{r}
 # Drainage Area delineated by expert opinion
-tDA = 16.5
+tDA = 16.3
+tDAsub = 7.3
 # convert tDA to m^2
 tDAm2=tDA*4046.86
+tDAm2s=tDAsub*4046.86
 # units = m^2
-print(tDAm2)
 ```
 
 Then we import data on precipitation from weather underground at the Ft. Wayne weather station (31 miles away)
@@ -422,28 +423,33 @@ raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = "%m/%d/%Y")
 # Rename so our old code keeps working 
 dayrain=raindata
 ```
-Then we estimate runoff according to Pease et al. 2018 with ~7% of rainfall as surface runoff, and 31% of rainfall as subsurface runoff for a total of 38% of rainfall as runoff
+Then we estimate runoff according to Pease et al. 2018 with ~7% of rainfall as surface runoff, and 31% of rainfall as subsurface runoff for a total of 38% of rainfall as runoff but it gets a bit tricky where there are different drainage areas for surface vs. subsurface water.
 ```{r}
 # don't need to convert rain to inches/day, but lets name it so our old code still works
 dayrain$precip = dayrain$precipaccum_in
 # scale up to the entire drainage area
 dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+dayrain$fullprecipsub=tDAm2s*dayrain$precipaccum_in
+totalprecipL = sum(dayrain$fullprecip)*0.0254*1000
+# We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
+dayrain$Qsur = dayrain$fullprecip * 0.07
+dayrain$Qsub = dayrain$fullprecipsub * 0.31
+# now add those up:
+dayrain$Q = dayrain$Qsur+dayrain$Qsub
 # convert back to meters 
-dayrain$precipm = dayrain$fullprecip * 0.0254
+dayrain$Qm = dayrain$Q * 0.0254
 # convert discharge to liters
-dayrain$precipL = dayrain$precipm * 1000
+dayrain$QL = dayrain$Qm * 1000
 # Sum up annual precipitation and discharge
-sum(dayrain$precipL)
+sum(dayrain$pQL)
 # Sum up data to get monthly values
 library(lubridate)
 library(tidyverse)
 dayrain$Date=as.POSIXct(dayrain$datetime,format="%Y-%m-%d")
 # Summarize the dataset by month and year
 monthrain=dayrain %>% mutate(Month=month(Date,label = T),Year=year(Date)) %>%
-  group_by(Year,Month) %>% summarise(precipL=sum(precipL,na.rm=T))
+  group_by(Year,Month) %>% summarise(QL=sum(QL,na.rm=T))
 
-# We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
-monthrain$QL = monthrain$precipL * 0.38
 sum(monthrain$QL)
 ```
 
@@ -534,7 +540,7 @@ print(highRemoval)
 ```{r}
 # Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
 tDAsur = 164.41
-tDAsub = 16.5
+tDAsub = 7.3
 # convert tDA to m^2
 tDAm2sur=tDAsur*4046.86
 tDAm2sub=tDAsub*4046.86

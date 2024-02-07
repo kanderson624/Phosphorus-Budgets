@@ -794,12 +794,12 @@ topographic drainage area)<br></li>
 <h2>H3: Rainfall from Ft. Wayne, expert estimate of drainage area,
 estimates of runoff from Pease et al. 2018</h2>
 <pre class="r"><code># Drainage Area delineated by expert opinion
-tDA = 16.5
+tDA = 16.3
+tDAsub = 7.3
 # convert tDA to m^2
 tDAm2=tDA*4046.86
-# units = m^2
-print(tDAm2)</code></pre>
-<pre><code>## [1] 66773.19</code></pre>
+tDAm2s=tDAsub*4046.86
+# units = m^2</code></pre>
 <p>Then we import data on precipitation from weather underground at the
 Ft. Wayne weather station (31 miles away)</p>
 <pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
@@ -810,31 +810,37 @@ raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%m/%d
 dayrain=raindata</code></pre>
 <p>Then we estimate runoff according to Pease et al. 2018 with ~7% of
 rainfall as surface runoff, and 31% of rainfall as subsurface runoff for
-a total of 38% of rainfall as runoff</p>
+a total of 38% of rainfall as runoff but it gets a bit tricky where
+there are different drainage areas for surface vs. subsurface water.</p>
 <pre class="r"><code># don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
 dayrain$precip = dayrain$precipaccum_in
 # scale up to the entire drainage area
 dayrain$fullprecip=tDAm2*dayrain$precipaccum_in
+dayrain$fullprecipsub=tDAm2s*dayrain$precipaccum_in
+totalprecipL = sum(dayrain$fullprecip)*0.0254*1000
+# We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
+dayrain$Qsur = dayrain$fullprecip * 0.07
+dayrain$Qsub = dayrain$fullprecipsub * 0.31
+# now add those up:
+dayrain$Q = dayrain$Qsur+dayrain$Qsub
 # convert back to meters 
-dayrain$precipm = dayrain$fullprecip * 0.0254
+dayrain$Qm = dayrain$Q * 0.0254
 # convert discharge to liters
-dayrain$precipL = dayrain$precipm * 1000
+dayrain$QL = dayrain$Qm * 1000
 # Sum up annual precipitation and discharge
-sum(dayrain$precipL)</code></pre>
-<pre><code>## [1] 57207396</code></pre>
+sum(dayrain$pQL)</code></pre>
+<pre><code>## [1] 0</code></pre>
 <pre class="r"><code># Sum up data to get monthly values
 library(lubridate)
 library(tidyverse)
 dayrain$Date=as.POSIXct(dayrain$datetime,format=&quot;%Y-%m-%d&quot;)
 # Summarize the dataset by month and year
 monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
-  group_by(Year,Month) %&gt;% summarise(precipL=sum(precipL,na.rm=T))</code></pre>
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;Year&#39;. You can override using the
 ## `.groups` argument.</code></pre>
-<pre class="r"><code># We expect that subsurface drainage will be ~ 31% of total rainfall and surface runoff will be ~ 7% of total rainfall (Pease et al. 2018)
-monthrain$QL = monthrain$precipL * 0.38
-sum(monthrain$QL)</code></pre>
-<pre><code>## [1] 21738811</code></pre>
+<pre class="r"><code>sum(monthrain$QL)</code></pre>
+<pre><code>## [1] 11802059</code></pre>
 <p>Now we add in the monthly measurements of Phosphorus concentrations
 to calculate P loading.</p>
 <pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
@@ -862,19 +868,19 @@ total$Premoved=total$Pinlb-total$Poutlb
 total23&lt;- subset(total, Year == &quot;2023&quot;)
 total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
 print(total23)</code></pre>
-<pre><code>##    Month Year     Pinlb    Poutlb  Premoved        QL inflowTP outflowTP
-## 1    Apr 2023 0.8951475 0.1491912 0.7459562 1353439.1   0.3000     0.050
-## 3    Aug 2023        NA        NA        NA 1598347.2       NA        NA
-## 4    Dec 2023        NA        NA        NA 1056971.5       NA        NA
-## 5    Feb 2023 1.8057540 0.8097817 0.9959724 2681098.5   0.3055     0.137
-## 6    Jan 2023 1.0306984 0.7135604 0.3171380 1798140.6   0.2600     0.180
-## 8    Jul 2023 4.5334248       NaN       NaN 3415822.6   0.6020       NaN
-## 10   Jun 2023       NaN       NaN       NaN  882957.9      NaN       NaN
-## 12   Mar 2023 1.2263521 0.3503863 0.8759658 2648873.8   0.2100     0.060
-## 13   May 2023 2.7758098 0.8674405 1.9083692 2623094.0   0.4800     0.150
-## 15   Nov 2023       NaN       NaN       NaN  418921.6      NaN       NaN
-## 18   Oct 2023        NA        NA        NA 2210617.3       NA        NA
-## 20   Sep 2023       NaN       NaN       NaN 1050526.6      NaN       NaN</code></pre>
+<pre><code>##    Month Year     Pinlb     Poutlb  Premoved        QL inflowTP outflowTP
+## 1    Apr 2023 0.4859780 0.08099633 0.4049817  734785.8   0.3000     0.050
+## 3    Aug 2023        NA         NA        NA  867747.0       NA        NA
+## 4    Dec 2023        NA         NA        NA  573832.7       NA        NA
+## 5    Feb 2023 0.9803488 0.43963267 0.5407161 1455575.6   0.3055     0.137
+## 6    Jan 2023 0.5595690 0.38739389 0.1721751  976215.4   0.2600     0.180
+## 8    Jul 2023 2.4612086        NaN       NaN 1854459.4   0.6020       NaN
+## 10   Jun 2023       NaN        NaN       NaN  479360.2      NaN       NaN
+## 12   Mar 2023 0.6657899 0.19022568 0.4755642 1438080.7   0.2100     0.060
+## 13   May 2023 1.5069946 0.47093583 1.0360588 1424084.8   0.4800     0.150
+## 15   Nov 2023       NaN        NaN       NaN  227433.7      NaN       NaN
+## 18   Oct 2023        NA         NA        NA 1200150.1       NA        NA
+## 20   Sep 2023       NaN        NaN       NaN  570333.7      NaN       NaN</code></pre>
 <pre class="r"><code>#We can assume there is no P retained when there is no discharge: 
 library(dplyr)
 # first make all NaNs into NAs
@@ -894,7 +900,7 @@ total23$Premoved=ifelse(test = total23$Month == &quot;Jul&quot; &amp; total23$Ye
 Removal = sum (total23$Premoved,na.rm=T)
 # This is the removal of P by pool by over the course of the 8 months that we have data for
 print(Removal)</code></pre>
-<pre><code>## [1] 7.649017</code></pre>
+<pre><code>## [1] 4.152672</code></pre>
 <pre class="r"><code># our low estimate is the lowest concentration we saw: 
 lowPcon = min(total23$inflowTP,na.rm = TRUE)
 # our high estimate is the highest concentration we saw: 
@@ -916,9 +922,9 @@ total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*hi
 lowRemoval = sum (total23$Premovedlow,na.rm=T)
 highRemoval = sum (total23$Premovedhigh,na.rm=T)
 print(lowRemoval)</code></pre>
-<pre><code>## [1] 8.677289</code></pre>
+<pre><code>## [1] 4.710924</code></pre>
 <pre class="r"><code>print(highRemoval)</code></pre>
-<pre><code>## [1] 15.63241</code></pre>
+<pre><code>## [1] 8.486876</code></pre>
 <div id="assumptions-in-this-budget-2" class="section level3">
 <h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
 <ol style="list-style-type: decimal">
@@ -937,7 +943,7 @@ drainage)<br></li>
 expert estimate of subsurface drainage area</h2>
 <pre class="r"><code># Drainage Area calculated by DEM (164.41 acres, 66.54 hectares)
 tDAsur = 164.41
-tDAsub = 16.5
+tDAsub = 7.3
 # convert tDA to m^2
 tDAm2sur=tDAsur*4046.86
 tDAm2sub=tDAsub*4046.86</code></pre>
@@ -1081,7 +1087,7 @@ dayrain$precipm = dayrain$fullprecip * 0.0254
 dayrain$precipL = dayrain$precipm * 1000
 # Sum up annual precipitation and discharge
 sum(dayrain$precipL)</code></pre>
-<pre><code>## [1] 57207396</code></pre>
+<pre><code>## [1] 25309939</code></pre>
 <pre class="r"><code># Sum up data to get monthly values
 library(lubridate)
 library(tidyverse)
@@ -1094,7 +1100,7 @@ monthrain=dayrain %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&g
 <pre class="r"><code># We expect that subsurface drainage will be ~ 31% of total runoff (Pease et al. 2018)
 monthrain$QL = monthrain$precipL * 0.31
 sum(monthrain$QL)</code></pre>
-<pre><code>## [1] 17734293</code></pre>
+<pre><code>## [1] 7846081</code></pre>
 <p>Now we add in the monthly measurements of Phosphorus concentrations
 to calculate P loading for subsurface.</p>
 <pre class="r"><code># Add in the P dataset (units here are mg/L for TP)
@@ -1122,19 +1128,19 @@ total$Premoved=total$Pinlb-total$Poutlb
 total23&lt;- subset(total, Year == &quot;2023&quot;)
 total23&lt;- subset(total23, select=c(Month,Year,Pinlb,Poutlb,Premoved,QL,inflowTP,outflowTP))
 print(total23)</code></pre>
-<pre><code>##    Month Year     Pinlb    Poutlb  Premoved        QL inflowTP outflowTP
-## 1    Apr 2023 0.7302519 0.1217087 0.6085433 1104121.4   0.3000     0.050
-## 3    Aug 2023        NA        NA        NA 1303914.8       NA        NA
-## 4    Dec 2023        NA        NA        NA  862266.2       NA        NA
-## 5    Feb 2023 1.4731151 0.6606114 0.8125038 2187211.9   0.3055     0.137
-## 6    Jan 2023 0.8408329 0.5821151 0.2587178 1466904.2   0.2600     0.180
-## 8    Jul 2023 3.6983202       NaN       NaN 2786592.1   0.6020       NaN
-## 10   Jun 2023       NaN       NaN       NaN  720307.8      NaN       NaN
-## 12   Mar 2023 1.0004451 0.2858415 0.7146036 2160923.3   0.2100     0.060
-## 13   May 2023 2.2644764 0.7076489 1.5568275 2139892.4   0.4800     0.150
-## 15   Nov 2023       NaN       NaN       NaN  341751.9      NaN       NaN
-## 18   Oct 2023        NA        NA        NA 1803398.3       NA        NA
-## 20   Sep 2023       NaN       NaN       NaN  857008.5      NaN       NaN</code></pre>
+<pre><code>##    Month Year     Pinlb     Poutlb  Premoved        QL inflowTP outflowTP
+## 1    Apr 2023 0.3230811 0.05384686 0.2692343  488490.1   0.3000     0.050
+## 3    Aug 2023        NA         NA        NA  576883.5       NA        NA
+## 4    Dec 2023        NA         NA        NA  381487.5       NA        NA
+## 5    Feb 2023 0.6517419 0.29227049 0.3594714  967675.6   0.3055     0.137
+## 6    Jan 2023 0.3720049 0.25754183 0.1144630  648994.0   0.2600     0.180
+## 8    Jul 2023 1.6362265        NaN       NaN 1232855.9   0.6020       NaN
+## 10   Jun 2023       NaN        NaN       NaN  318681.6      NaN       NaN
+## 12   Mar 2023 0.4426212 0.12646319 0.3161580  956044.9   0.2100     0.060
+## 13   May 2023 1.0018592 0.31308101 0.6887782  946740.3   0.4800     0.150
+## 15   Nov 2023       NaN        NaN       NaN  151199.3      NaN       NaN
+## 18   Oct 2023        NA         NA        NA  797867.1       NA        NA
+## 20   Sep 2023       NaN        NaN       NaN  379161.3      NaN       NaN</code></pre>
 <pre class="r"><code>library(dplyr)
 # first make all NaNs into NAs
 total23 &lt;- total23 %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
@@ -1173,9 +1179,9 @@ total23$Premovedhigh=ifelse(test = is.na(total23$Premoved) , yes = total23$QL*hi
 lowRemoval = sum (total23$Premovedlow,na.rm=T)
 highRemoval = sum (total23$Premovedhigh,na.rm=T)
 print(lowRemoval)</code></pre>
-<pre><code>## [1] 7.078841</code></pre>
+<pre><code>## [1] 3.131851</code></pre>
 <pre class="r"><code>print(highRemoval)</code></pre>
-<pre><code>## [1] 12.75275</code></pre>
+<pre><code>## [1] 5.642127</code></pre>
 <div id="assumptions-in-this-budget-3" class="section level3">
 <h3><strong><em>ASSUMPTIONS IN THIS BUDGET:</em></strong></h3>
 <ol style="list-style-type: decimal">
