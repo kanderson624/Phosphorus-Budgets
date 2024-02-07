@@ -357,8 +357,8 @@ display: none;
 </div>
 
 
-<div id="odnr-budgets" class="section level2">
-<h2>ODNR Budgets:</h2>
+<div id="h0-odnr-budgets" class="section level2">
+<h2>H0: ODNR Budgets:</h2>
 <p>ODNR makes budgets for P reduction in potential wetlands using the
 following method:</p>
 <ol style="list-style-type: decimal">
@@ -440,35 +440,32 @@ role in phosphorus loading, or retention, or hydrologic
 dynamics.<br></p>
 </div>
 </div>
-<div id="calculating-runoff-from-rainfall" class="section level2">
-<h2>Calculating Runoff from Rainfall</h2>
+<div id="h1-main-flow-path-budget-calculating-runoff-from-rainfall" class="section level2">
+<h2>H1: Main flow path budget calculating Runoff from Rainfall</h2>
 <p>Calculate drainage area and treated drainage area using digital
 elevation models:</p>
 <pre class="r"><code># Drainage Area calculated by Bishwodeep using Digital Elevation Model (DEM)
-tDA = 103.32
+tDA = 103.32 # units = acres CHECK THIS WITH BISHWODEEP
 # convert tDA to m^2
 tDAm2=tDA*4046.86
 # units = m^2
 print(tDAm2)</code></pre>
 <pre><code>## [1] 418121.6</code></pre>
-<p>Then we import data on precipitation from the sensor network</p>
+<p>Then we import data on precipitation from the sensor network and from
+the nearby weather station at Ft. Wayne (from WeatherUnderground) which
+we will use to fill in our rainfall data.</p>
 <pre class="r"><code>setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/SJRE/Data&quot;)
 raindata&lt;-read.csv(&quot;SJREsensors.csv&quot;)
-# These are the first 6 rows to give you an idea what the datatable looks like
-head(raindata)</code></pre>
-<pre><code>##              datetime airtemp     baro  par precipaccum    rh  wdir wgst  wspd
-## 1 2023-06-28 16:40:00   23.74 1007.326 1333           0 50.75 250.9 1.42 0.409
-## 2 2023-06-28 16:50:00   24.75 1007.245 1211           0 46.95 226.9 1.32 0.444
-## 3 2023-06-28 17:00:00   25.29 1007.307  851           0 45.75 337.3 1.60 0.372
-## 4 2023-06-28 17:10:00   25.39 1007.307  860           0 44.11 322.8 1.33 0.349
-## 5 2023-06-28 17:20:00   26.01 1007.120 1443           0 42.73 338.5 1.46 0.438
-## 6 2023-06-28 17:30:00   25.23 1007.164 1201           0 43.35 211.2 1.69 0.459</code></pre>
-<pre class="r"><code># make it recognize that it&#39;s a date-time value
-raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%Y-%m-%d %H:%M:%S&quot;))
+setwd(&quot;C:/Users/kande120/OneDrive - Kent State University/Phosphorus Budgets/FORB/Data&quot;)
+raindata_wayne&lt;-read.csv(&quot;Ftwaynerainfall.csv&quot;)
 
-# Here we will aggregate our rainfall values so we have a sum of rainfall for each day
+# make it recognize that it&#39;s a date-time value
+raindata = mutate(raindata, datetime = as.POSIXct(datetime, format = &quot;%Y-%m-%d %H:%M:%S&quot;))
+dayrain_wayne = mutate(raindata_wayne, datetime = as.POSIXct(datetime, format = &quot;%m/%d/%Y&quot;)) # rainfall data is in inches
+
+# Here we will aggregate our rainfall values (just for the sensor data, the WeatherUnderground data is already the daily sum) so we have a sum of rainfall for each day
 DF2 &lt;- transform(raindata, Date = as.Date(datetime))
-dayrain=aggregate(precipaccum ~ Date, DF2, sum)</code></pre>
+dayrain=aggregate(precipaccum ~ Date, DF2, sum) # rainfall data is in mm</code></pre>
 <p>We will calculate the runoff that flows through the wetland during
 rain events based on some information about soil properties.</p>
 <p><span class="math display">\[Q=\begin{cases}
@@ -488,20 +485,20 @@ power through with it)</p>
 around 80, fairly poorly drained (we know that the surrounding fields
 flood often). <br></p>
 <pre class="r"><code># Start out by calculating S (inches)
-CN=80
+CN=85
 S = (1000/CN)-10
 # Calculate I (inches)
 Ia = 0.2*S
 # convert rain to inches/day
-dayrain$precip = dayrain$precipaccum/25.4
+dayrain$precip_in = dayrain$precipaccum/25.4
 # caculate runoff (inches) for each day in the dataset
-dayrain$Q = ifelse(dayrain$precip&lt;=Ia, 0, ((dayrain$precip-Ia)^2)/(dayrain$precip-Ia+S))
-# scale up to the entire drainage area
-dayrain$Q=tDAm2*dayrain$Q
+dayrain$Q = ifelse(dayrain$precip_in&lt;=Ia, 0, ((dayrain$precip_in-Ia)^2)/(dayrain$precip_in-Ia+S))
 # convert back to meters 
 dayrain$Qm = dayrain$Q * 0.0254
+# scale up to the entire drainage area
+dayrain$Qmfull=tDAm2*dayrain$Qm
 # convert discharge to liters
-dayrain$QL = dayrain$Qm * 1000
+dayrain$QL = dayrain$Qmfull * 1000
 # Sum up data to get monthly values
 library(lubridate)
 library(tidyverse)
@@ -562,32 +559,9 @@ head(Pdata)</code></pre>
 ## 5          &lt;NA&gt;
 ## 6          &lt;NA&gt;</code></pre>
 <pre class="r"><code># merge the datasets
-total &lt;- merge(monthrain,Pdata,by=c(&quot;Month&quot;,&quot;Year&quot;))
+total &lt;- merge(monthrain,Pdata,by=c(&quot;Month&quot;,&quot;Year&quot;),all=TRUE)
 
-# Measure the mass of P entering pool B (units = mg P/year)
-total$PinPoolB=total$X5_inlet_poolB*total$QL
-# calculate the total mass of P exiting the wetland (units = mg P/year)
-total$PoutPoolB=total$X5_Outlet_poolB*total$QL
-# Convert to lbs P/year
-total$PinlbPoolB=total$PinPoolB/453592
-total$PoutlbPoolB=total$PoutPoolB/453592
-# calculate the amount of P removed
-total$PremovedPoolB=total$PinlbPoolB-total$PoutlbPoolB
-RemovalPoolB = sum (total$PremovedPoolB,na.rm=T)
-# This is the removal of P by pool by over the course of the 3 months included in this data
-print(RemovalPoolB)</code></pre>
-<pre><code>## [1] 1.966778</code></pre>
-<pre class="r"><code># We can make a rough annual estimate by just multiplying by 4:
-AnnRemovalPoolB=RemovalPoolB*4
-print(AnnRemovalPoolB)</code></pre>
-<pre><code>## [1] 7.867112</code></pre>
-<pre class="r"><code># Calculate percent removal
-total$percentPPoolB=total$PremovedPoolB/total$PinlbPoolB
-percentRemovalPoolB = mean (total$percentPPoolB,na.rm=T)
-print(percentRemovalPoolB)</code></pre>
-<pre><code>## [1] 0.3879573</code></pre>
-<p>Now lets try the same thing with the entire wetland:</p>
-<pre class="r"><code># We already have the merged datasets so we start by averaging the various inflows 
+# averaging the various inflows 
 total$inflowTP &lt;- rowMeans(total[c(&#39;X1_Inlet_N.TP&#39;, &#39;X2_Inlet_NW.TP&#39;,&#39;X3_Inlet_NE.TP&#39;,&#39;X18_Inlet_ditchExt.TP.OR.upstream17&#39;)], na.rm=TRUE)
 # Now calculate the average outflow TP
 total$outflowTP &lt;- rowMeans(total[c(&#39;X15_Outlet_swale&#39;, &#39;X17_Outlet_ditch.TP&#39;)], na.rm=TRUE)
@@ -601,40 +575,195 @@ total$Poutlb=total$Pout/453592
 # calculate the amount of P removed
 total$Premoved=total$Pinlb-total$Poutlb
 Removal = sum (total$Premoved,na.rm=T)
-# This is the removal of P by pool by over the course of the 3 months included in this data
+# This is the removal of P over the course of the 3 months included in this data
 print(Removal)</code></pre>
-<pre><code>## [1] 11.32125</code></pre>
+<pre><code>## [1] 21.36732</code></pre>
 <pre class="r"><code># We can make a rough annual estimate by just multiplying by 4:
 AnnRemoval=Removal*4
 print(AnnRemoval)</code></pre>
-<pre><code>## [1] 45.28499</code></pre>
+<pre><code>## [1] 85.46928</code></pre>
 <pre class="r"><code># Calculate percent removal
 total$percentP=total$Premoved/total$Pinlb
 percentRemoval = mean (total$percentP,na.rm=T)
 print(percentRemoval)</code></pre>
 <pre><code>## [1] 0.9648419</code></pre>
-<div id="assumptions-in-budget" class="section level3">
-<h3><strong><em>ASSUMPTIONS IN BUDGET:</em></strong></h3>
-<ol style="list-style-type: decimal">
-<li>Drainage area is accurate <br></li>
-<li>P isn’t lost through groundwater<br></li>
-<li>Baseflow P reduction = storm flow P reduction <br></li>
-<li>Summer P measurements represent annual averages (they don’t)
-<br></li>
-<li>The average of inflow concentrations represents average P
-concentration entering the wetland (This likely is NOT true because the
-amounts of water flowing through each input is different)<br></li>
-<li>Pool B represents the whole wetland <br></li>
-</ol>
+<p>Now we can start to look at how to deal with the months with rainfall
+data, but no phosphorus data</p>
+<pre class="r"><code># make a dataset for only 2023
+total23 &lt;- subset(total, Year == &quot;2023&quot;)
+# clean up any repeat months
+total23 &lt;- total23 %&gt;% group_by(Month) %&gt;% summarise(across(c(Year, QL, inflowTP, outflowTP,Pin, Pout, Pinlb, Poutlb,Premoved,percentP), mean))
+print(total23)</code></pre>
+<pre><code>## # A tibble: 12 × 11
+##    Month  Year       QL inflowTP outflowTP      Pin    Pout  Pinlb   Poutlb
+##    &lt;ord&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+##  1 Jan    2023      NA    0.257       0.05      NA      NA   NA     NA     
+##  2 Feb    2023      NA    0.167       0.31      NA      NA   NA     NA     
+##  3 Mar    2023      NA    0.0733    NaN         NA      NA   NA     NA     
+##  4 Apr    2023      NA    0.05        0.31      NA      NA   NA     NA     
+##  5 May    2023      NA    0.453       0.3       NA      NA   NA     NA     
+##  6 Jun    2023  574068.   0.85        0.02  487958.  11481.   1.08   0.0253
+##  7 Jul    2023 7362128.   1.19        0.07 8760932. 515349.  19.3    1.14  
+##  8 Aug    2023  573956.   1.73        0.04  992944.  22958.   2.19   0.0506
+##  9 Sep    2023 1697816. NaN         NaN        NaN     NaN  NaN    NaN     
+## 10 Oct    2023 2490829. NaN         NaN        NaN     NaN  NaN    NaN     
+## 11 Nov    2023  136320. NaN         NaN        NaN     NaN  NaN    NaN     
+## 12 Dec    2023  155300. NaN         NaN        NaN     NaN  NaN    NaN     
+## # ℹ 2 more variables: Premoved &lt;dbl&gt;, percentP &lt;dbl&gt;</code></pre>
+<p>Now we have a dataset with each month of the year where some months
+have phosphorus data but no discharge data, and some months have
+discharge data but no phoshorus data. Lets do the easy part first and
+fill in missing discharge data with rainfall data from Ft. Wayne:</p>
+<pre class="r"><code># Now we come back to our previously loaded Fort Wayne Dataset
+# don&#39;t need to convert rain to inches/day, but lets name it so our old code still works
+# calculate runoff (inches) for each day in the dataset
+dayrain_wayne$Q = ifelse(dayrain_wayne$precipaccum_in&lt;=Ia, 0, ((dayrain_wayne$precipaccum_in-Ia)^2)/(dayrain_wayne$precipaccum_in-Ia+S))
+# convert back to meters 
+dayrain_wayne$Qm = dayrain_wayne$Q * 0.0254
+# scale up to the entire drainage area
+dayrain_wayne$Qmfull=tDAm2*dayrain_wayne$Qm
+# convert discharge to liters
+dayrain_wayne$QL = dayrain_wayne$Qmfull * 1000
+# Sum up data to get monthly values
+library(lubridate)
+library(tidyverse)
+dayrain_wayne$Date=as.POSIXct(dayrain_wayne$datetime,format=&quot;%Y-%m-%d&quot;)
+# Summarize the dataset by month and year
+monthrainft=dayrain_wayne %&gt;% mutate(Month=month(Date,label = T),Year=year(Date)) %&gt;%
+  group_by(Year,Month) %&gt;% summarise(QL=sum(QL,na.rm=T))</code></pre>
+<p>Now we just need to slot our values from Ft. Wayne into SJRE. The
+data from Ft. Wayne is a good approximation of rainfall, but you miss
+important events, for example in November Ft. Wayne did not get enough
+rainfall to have runoff, whereas SJRE had a MAJOR rainfall event with
+more than 12 inches of rain in a single day.</p>
+<pre class="r"><code># first we need to cut out the rows from the Ft. Wayne dataset where we already have rainfall data from the sensor network:
+# As a note to future me: I am not including the June data from Ft. Wayne because EVEN THOUGH we only have 3 days of rainfall from the sensor network for June, those 3 days had MORE DISCHARGE THAN WAS AT FT. WAYNE FOR THE WHOLE MONTH. So from that we can assume the rest of June was pretty dry and our estimate even with only 3 days is better than Ft. Wayne for June. It&#39;s not as if it&#39;s less than the 3 days worth.
+monthrainft = subset(monthrainft, Month == &quot;Jan&quot; | Month == &quot;Feb&quot; | Month == &quot;Mar&quot; | Month == &quot;Apr&quot; | Month == &quot;May&quot;)
+
+# now we need to slot in the Ft. Wayne data into our main dataset
+totalplus23 &lt;- merge(total23,monthrainft,by=c(&quot;Month&quot;,&quot;Year&quot;,&quot;QL&quot;),all=TRUE)
+total23final &lt;- totalplus23 %&gt;% group_by(Month) %&gt;% summarise(across(c(Year, QL, inflowTP, outflowTP,Pin, Pout, Pinlb, Poutlb,Premoved,percentP), mean, na.rm=TRUE))</code></pre>
+<p>Now we have discharge estimates for all months of 2023 (some sensor
+data, some data from the Ft. Wayne Weather Station). We have phosphorus
+concentrations when water was available to be collected during monthly
+sampling. Our next steps are to 1. calculate loads and retention based
+on discharge from the Ft. Wayne data, 2. Estimate load and retention
+based on high and low values for months with missing concentration
+data.</p>
+<pre class="r"><code># first make all NaNs into NAs
+total23final &lt;- total23final %&gt;% mutate_all(~ifelse(is.nan(.), NA, .))
+
+# percent phosphorus retention for each month
+total23final$percentP=(total23final$inflowTP-total23final$outflowTP)/total23final$inflowTP
+# We have one date where we have input data, but not output data. We&#39;re going to assume that it&#39;s the average retention of the previous and the prior month: 
+# the previous month is -0.86% retention, and the next month is -5.2% retention. The inflow concentration is 0.07333333
+mean(c(-0.86,-5.2))</code></pre>
+<pre><code>## [1] -3.03</code></pre>
+<pre class="r"><code>-3.03*0.073</code></pre>
+<pre><code>## [1] -0.22119</code></pre>
+<pre class="r"><code># replace the month in question (March 2023)
+total23final$outflowTP=ifelse(test = total23final$Month == &quot;3&quot; &amp; total23final$Year == &quot;2023&quot;, yes = 0.22, no = total23final$outflowTP)
+
+# Measure the mass of P entering the wetland (units = mg P/year)
+total23final$Pin=total23final$inflowTP*total23final$QL
+# calculate the total23final mass of P exiting the wetland (units = mg P/year)
+total23final$Pout=total23final$outflowTP*total23final$QL
+# Convert to lbs P/year
+total23final$Pinlb=total23final$Pin/453592
+total23final$Poutlb=total23final$Pout/453592
+# calculate the amount of P removed
+total23final$Premoved=total23final$Pinlb-total23final$Poutlb
+# calculate the % P removed
+total23final$percentP=total23final$Premoved/total23final$Pinlb
+
+# calculate the average percent removal
+mean(total23final$percentP,na.rm=TRUE)</code></pre>
+<pre><code>## [1] -0.5027555</code></pre>
+<pre class="r"><code># calculate a percent removal by the LOAD of the wetland (this highlights the importance of load in calculating percent removal)
+sum(total23final$Premoved,na.rm=TRUE)/sum(total23final$Pinlb,na.rm=TRUE)</code></pre>
+<pre><code>## [1] 0.5029045</code></pre>
+<p>We can estimate the remaining months by estimating a low and a high
+value for P loading and P retention. <br> We have discharge data for all
+months, so we don’t want to just estimate loading, when we can estimate
+concentration instead:</p>
+<pre class="r"><code># our low estimate is the lowest concentration we saw: 
+lowPcon = min(total23final$inflowTP,na.rm = TRUE)
+# our high estimate is the highest concentration we saw: 
+highPcon= max(total23final$inflowTP,na.rm = TRUE)
+
+# then we can estimate the low end of % retention
+lowPper = min(total23final$percentP,na.rm = TRUE)
+# and then the high end of % retention
+highPper = max(total23final$percentP,na.rm = TRUE)
+
+
+# now calculate P load and retention using these concentrations to estimate the high and low end of P removal by the wetland:
+
+# first for the low estimate
+total23final$Premovedlow=ifelse(test = is.na(total23final$Premoved) , yes = total23final$QL*lowPcon/453592*lowPper, no = total23final$Premoved)
+# then for the high estimate
+total23final$Premovedhigh=ifelse(test = is.na(total23final$Premoved) , yes = total23final$QL*highPcon/453592*highPper, no = total23final$Premoved)
+
+# Now we can sum up our full months: 
+lowRemoval = sum (total23final$Premovedlow,na.rm=T)
+highRemoval = sum (total23final$Premovedhigh,na.rm=T)
+print(lowRemoval)</code></pre>
+<pre><code>## [1] 16.46062</code></pre>
+<pre class="r"><code>print(highRemoval)</code></pre>
+<pre><code>## [1] 35.72136</code></pre>
+<p>Now lets plot it out real quick to see the annual variation:</p>
+<pre class="r"><code># lets prune our dataframe to only what we&#39;re interested in: 
+totalplot = subset(total23final, select = c(Month,Premovedlow,Premovedhigh) )
+
+# lets put our dataframe into the tall format so we can plot it more easily:
+dfplots = totalplot %&gt;%
+    gather(highlow,Pretained, Premovedlow, Premovedhigh) 
+
+# now make the plot
+
+ggplot(data=dfplots, aes(x=Month, y=Pretained, group=highlow)) +
+  geom_line(aes(linetype=highlow),size=1)+
+  geom_point(size=2)+ 
+  scale_x_continuous(name=&quot;Month&quot;, breaks = 1:12, limits=c(0, 12))+
+  theme_classic()</code></pre>
+<p><img src="data:image/png;base64,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" width="672" />
+### <strong><em>ASSUMPTIONS IN BUDGET:</em></strong> 1. Drainage area is
+accurate <br> 2. P isn’t lost through groundwater<br> 3. Baseflow P
+reduction = storm flow P reduction <br> 4. Summer P measurements
+represent annual averages (they don’t) <br> 5. The average of inflow
+concentrations represents average P concentration entering the wetland
+(This likely is NOT true because the amounts of water flowing through
+each input is different)<br> 6. Pool B represents the whole wetland
+<br></p>
 <p>As one last thing lets make a pretty conservative estimate of the
 error of our budget as the difference between our highest monthly
 retention and our lowest as an annual average:</p>
 <pre class="r"><code># First we can take a look at our data: 
 total[c(&quot;Month&quot;,&quot;QL&quot;,&quot;Premoved&quot;,&quot;percentP&quot;)]</code></pre>
-<pre><code>##   Month        QL   Premoved  percentP
-## 1   Aug  102210.3  0.3808167 0.9768786
-## 2   Jul 4325175.2 10.6796333 0.9411765
-## 3   Jun  142525.1  0.2607978 0.9764706</code></pre>
+<pre><code>##    Month        QL  Premoved  percentP
+## 1    Jan        NA        NA        NA
+## 2    Feb        NA        NA        NA
+## 3    Mar        NA        NA        NA
+## 4    Mar        NA        NA        NA
+## 5    Mar        NA        NA        NA
+## 6    Apr        NA        NA        NA
+## 7    May        NA        NA        NA
+## 8    Jun        NA        NA        NA
+## 9    Jun  574068.3  1.050452 0.9764706
+## 10   Jul 7362127.8 18.178414 0.9411765
+## 11   Aug        NA        NA        NA
+## 12   Aug        NA        NA        NA
+## 13   Aug  573956.2  2.138455 0.9768786
+## 14   Sep        NA        NA        NA
+## 15   Sep 1697815.8       NaN       NaN
+## 16   Oct        NA        NA        NA
+## 17   Oct        NA        NA        NA
+## 18   Oct 2490828.7       NaN       NaN
+## 19   Nov        NA        NA        NA
+## 20   Nov  136320.4       NaN       NaN
+## 21   Dec        NA        NA        NA
+## 22   Dec  155300.1       NaN       NaN
+## 23  July        NA        NA        NA</code></pre>
 <p>As you can see there’s a big variation in discharge that is skewing
 our results. Mostly a single month accounts for the whole estimate of P
 retention.</p>
@@ -643,13 +772,12 @@ Removal_high = ((total[total$Month == &quot;Jul&quot;, &quot;Premoved&quot;])*9)
 # Low retention value (June; we multiply by 9 and add to the existing estimate to create an annual estimate):
 Removal_low = ((total[total$Month == &quot;Jun&quot;, &quot;Premoved&quot;])*9)+Removal
 print(Removal_high)</code></pre>
-<pre><code>## [1] 107.4379</code></pre>
+<pre><code>## [1] 184.973</code></pre>
 <pre class="r"><code>print(Removal_low)</code></pre>
-<pre><code>## [1] 13.66843</code></pre>
+<pre><code>## [1]       NA 30.82139</code></pre>
 <p>This estimate range is taking our 3 measured months as accurate and
 then assuming that the months we don’t know could be either as high as
 July, or as low as June.</p>
-</div>
 <div id="lets-see-how-rainfall-data-from-the-closest-publicly-available-weather-station-does-ft.-wayne-indiana-31-miles-away" class="section level3">
 <h3>Lets see how rainfall data from the closest publicly available
 weather station does (Ft. Wayne Indiana, 31 miles away)</h3>
@@ -730,10 +858,30 @@ print(percentRemoval)</code></pre>
 <p>Now lets compare our two datasets:</p>
 <pre class="r"><code># First our data from out sensor network: 
 total[c(&quot;Month&quot;,&quot;QL&quot;,&quot;Premoved&quot;,&quot;percentP&quot;)]</code></pre>
-<pre><code>##   Month        QL   Premoved  percentP
-## 1   Aug  102210.3  0.3808167 0.9768786
-## 2   Jul 4325175.2 10.6796333 0.9411765
-## 3   Jun  142525.1  0.2607978 0.9764706</code></pre>
+<pre><code>##    Month        QL  Premoved  percentP
+## 1    Jan        NA        NA        NA
+## 2    Feb        NA        NA        NA
+## 3    Mar        NA        NA        NA
+## 4    Mar        NA        NA        NA
+## 5    Mar        NA        NA        NA
+## 6    Apr        NA        NA        NA
+## 7    May        NA        NA        NA
+## 8    Jun        NA        NA        NA
+## 9    Jun  574068.3  1.050452 0.9764706
+## 10   Jul 7362127.8 18.178414 0.9411765
+## 11   Aug        NA        NA        NA
+## 12   Aug        NA        NA        NA
+## 13   Aug  573956.2  2.138455 0.9768786
+## 14   Sep        NA        NA        NA
+## 15   Sep 1697815.8       NaN       NaN
+## 16   Oct        NA        NA        NA
+## 17   Oct        NA        NA        NA
+## 18   Oct 2490828.7       NaN       NaN
+## 19   Nov        NA        NA        NA
+## 20   Nov  136320.4       NaN       NaN
+## 21   Dec        NA        NA        NA
+## 22   Dec  155300.1       NaN       NaN
+## 23  July        NA        NA        NA</code></pre>
 <pre class="r"><code># Then the dataset using publicly available rainfall data from Ft. Wayne:
 total_wayne[c(&quot;Month&quot;,&quot;QL&quot;,&quot;Premoved&quot;,&quot;percentP&quot;)]</code></pre>
 <pre><code>##   Month         QL   Premoved  percentP
